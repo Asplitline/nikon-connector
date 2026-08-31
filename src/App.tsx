@@ -88,7 +88,7 @@ function App() {
     <main className="app-shell h-screen overflow-hidden bg-[var(--color-canvas)] text-[var(--color-ink)]">
       <div className="app-frame grid h-full min-h-0 grid-cols-[248px_minmax(0,1fr)]">
         <aside className="side-panel min-h-0 overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-panel)] px-5 py-5">
-          <div className="flex items-start justify-between gap-3">
+          <div className="brand-row flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
                 Nikon Connector
@@ -156,7 +156,7 @@ function App() {
             </div>
             <div className="top-actions flex shrink-0 items-center gap-4">
               {selectedPhoto ? (
-                <span className="photo-count text-sm font-medium text-[var(--color-muted)]">
+                <span className="photo-count whitespace-nowrap text-sm font-medium text-[var(--color-muted)]">
                   {selectedIndex} / {catalog.photos.length}
                 </span>
               ) : null}
@@ -171,7 +171,7 @@ function App() {
           </header>
 
           <div className="review-area grid min-h-0 grid-cols-[minmax(0,1fr)_232px]">
-            <figure className="photo-stage flex min-h-0 items-center justify-center overflow-hidden bg-[var(--color-stage)] p-6">
+            <figure className="photo-stage flex min-h-0 min-w-0 items-center justify-center overflow-hidden bg-[var(--color-stage)] p-6">
               {selectedPhoto ? (
                 <img
                   alt={selectedPhoto.fileName}
