@@ -54,6 +54,18 @@ function App() {
   }, []);
 
   const selectedPhoto = useMemo(() => getSelectedPhoto(catalog), [catalog]);
+  const selectedIndex = selectedPhoto
+    ? catalog.photos.findIndex((photo) => photo.id === selectedPhoto.id) + 1
+    : 0;
+  const ratedCount = catalog.photos.filter((photo) => photo.rating > 0).length;
+  const connectionLabel =
+    connectionState === "connected"
+      ? "Ready"
+      : connectionState === "loading"
+        ? "Scanning"
+        : connectionState === "error"
+          ? "Needs attention"
+          : "No camera";
 
   async function handleRatingChange(photo: CameraPhoto, rating: Rating) {
     setRatingError(null);
@@ -73,122 +85,134 @@ function App() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-[var(--color-canvas)] text-[var(--color-ink)]">
-      <div className="grid h-full min-h-0 grid-cols-[236px_minmax(0,1fr)]">
-        <aside className="min-h-0 overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-panel)] px-4 py-4">
+    <main className="app-shell h-screen overflow-hidden bg-[var(--color-canvas)] text-[var(--color-ink)]">
+      <div className="app-frame grid h-full min-h-0 grid-cols-[248px_minmax(0,1fr)]">
+        <aside className="side-panel min-h-0 overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-panel)] px-5 py-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-muted)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
                 Nikon Connector
               </p>
-              <h1 className="mt-2 text-xl font-semibold tracking-normal text-[var(--color-ink)]">
+              <h1 className="mt-2 text-[1.45rem] font-semibold leading-tight tracking-normal text-[var(--color-ink)]">
                 Camera Card
               </h1>
             </div>
-            <span
-              className={[
-                "mt-1 h-2.5 w-2.5 rounded-full",
-                connectionState === "connected"
-                  ? "bg-[var(--color-ready)]"
-                  : "bg-[var(--color-muted)]",
-              ].join(" ")}
-            />
+            <span className="status-pill mt-0.5">
+              <span
+                aria-hidden="true"
+                className={[
+                  "h-2 w-2 rounded-full",
+                  connectionState === "connected"
+                    ? "bg-[var(--color-ready)]"
+                    : connectionState === "error"
+                      ? "bg-[var(--color-danger)]"
+                      : "bg-[var(--color-muted)]",
+                ].join(" ")}
+              />
+              <span>{connectionLabel}</span>
+            </span>
           </div>
 
-          <section className="mt-6 space-y-3">
-            <p className="text-sm font-medium text-[var(--color-muted)]">Device</p>
+          <section className="mt-8 space-y-3">
+            <p className="section-label">Device</p>
             {activeCamera ? (
-              <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-3">
-                <p className="text-base font-semibold">{activeCamera.name}</p>
-                <p className="mt-1 text-sm text-[var(--color-muted)]">
-                  {activeCamera.connection === "mock"
-                    ? "Preview data"
-                    : "USB connected"}
+              <div className="device-card rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-3.5">
+                <p className="text-base font-semibold leading-snug">{activeCamera.name}</p>
+                <p className="mt-1.5 text-sm text-[var(--color-muted)]">
+                  {formatConnection(activeCamera.connection)}
                 </p>
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-[var(--color-line)] p-4 text-sm text-[var(--color-muted)]">
+              <div className="empty-device rounded-lg border border-dashed border-[var(--color-line)] p-4 text-sm leading-6 text-[var(--color-muted)]">
                 {status}
               </div>
             )}
           </section>
 
-          <section className="mt-6 space-y-3">
-            <p className="text-sm font-medium text-[var(--color-muted)]">Library</p>
-            <dl className="grid grid-cols-2 gap-3 text-sm">
-              <div>
+          <section className="mt-8 space-y-3">
+            <p className="section-label">Library</p>
+            <dl className="library-stats grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-md bg-[var(--color-surface)] px-3 py-3">
                 <dt className="text-[var(--color-muted)]">Photos</dt>
-                <dd className="mt-1 text-xl font-semibold">{catalog.photos.length}</dd>
-              </div>
-              <div>
-                <dt className="text-[var(--color-muted)]">Rated</dt>
-                <dd className="mt-1 text-xl font-semibold">
-                  {catalog.photos.filter((photo) => photo.rating > 0).length}
+                <dd className="mt-1.5 text-2xl font-semibold leading-none">
+                  {catalog.photos.length}
                 </dd>
+              </div>
+              <div className="rounded-md bg-[var(--color-surface)] px-3 py-3">
+                <dt className="text-[var(--color-muted)]">Rated</dt>
+                <dd className="mt-1.5 text-2xl font-semibold leading-none">{ratedCount}</dd>
               </div>
             </dl>
           </section>
         </aside>
 
-        <section className="grid h-full min-h-0 grid-rows-[72px_minmax(0,1fr)_148px]">
-          <header className="flex min-h-0 items-center justify-between gap-4 border-b border-[var(--color-line)] px-5 py-3">
-            <div>
-              <p className="text-sm text-[var(--color-muted)]">{status}</p>
-              <h2 className="mt-1 text-xl font-semibold">
+        <section className="workspace grid h-full min-h-0 grid-rows-[84px_minmax(0,1fr)_156px]">
+          <header className="top-bar flex min-h-0 items-center justify-between gap-5 border-b border-[var(--color-line)] px-6 py-4">
+            <div className="min-w-0">
+              <p className="truncate text-sm text-[var(--color-muted)]">{status}</p>
+              <h2 className="mt-1 truncate text-2xl font-semibold leading-tight">
                 {selectedPhoto?.fileName ?? "No photo selected"}
               </h2>
             </div>
-            {selectedPhoto ? (
-              <StarRating
-                disabled={connectionState !== "connected"}
-                onChange={(rating) => void handleRatingChange(selectedPhoto, rating)}
-                value={selectedPhoto.rating}
-              />
-            ) : null}
+            <div className="top-actions flex shrink-0 items-center gap-4">
+              {selectedPhoto ? (
+                <span className="photo-count text-sm font-medium text-[var(--color-muted)]">
+                  {selectedIndex} / {catalog.photos.length}
+                </span>
+              ) : null}
+              {selectedPhoto ? (
+                <StarRating
+                  disabled={connectionState !== "connected"}
+                  onChange={(rating) => void handleRatingChange(selectedPhoto, rating)}
+                  value={selectedPhoto.rating}
+                />
+              ) : null}
+            </div>
           </header>
 
-          <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_220px]">
-            <figure className="flex min-h-0 overflow-hidden items-center justify-center bg-[var(--color-stage)] p-5">
+          <div className="review-area grid min-h-0 grid-cols-[minmax(0,1fr)_232px]">
+            <figure className="photo-stage flex min-h-0 items-center justify-center overflow-hidden bg-[var(--color-stage)] p-6">
               {selectedPhoto ? (
                 <img
                   alt={selectedPhoto.fileName}
-                  className="max-h-full max-w-full rounded-md object-contain shadow-[0_20px_80px_color-mix(in_oklch,var(--color-ink)_18%,transparent)]"
+                  className="review-image max-h-full max-w-full rounded-md object-contain"
                   src={selectedPhoto.previewUrl}
                 />
               ) : (
-                <div className="max-w-sm text-center text-[var(--color-muted)]">
+                <div className="max-w-sm text-center text-[var(--color-stage-muted)]">
                   Connect a Nikon Z6III to start browsing the card.
                 </div>
               )}
             </figure>
 
-            <aside className="min-h-0 overflow-y-auto border-l border-[var(--color-line)] bg-[var(--color-panel)] p-4">
-              <h3 className="text-sm font-semibold text-[var(--color-muted)]">
+            <aside className="details-panel min-h-0 overflow-y-auto border-l border-[var(--color-line)] bg-[var(--color-panel)] p-5">
+              <h3 className="section-label">
                 Details
               </h3>
               {selectedPhoto ? <PhotoDetails photo={selectedPhoto} /> : null}
               {ratingError ? (
-                <p className="mt-6 rounded-lg border border-[var(--color-danger-line)] bg-[var(--color-danger-bg)] p-3 text-sm text-[var(--color-danger)]">
+                <p className="mt-6 rounded-lg border border-[var(--color-danger-line)] bg-[var(--color-danger-bg)] p-3 text-sm leading-6 text-[var(--color-danger)]">
                   {ratingError}
                 </p>
               ) : null}
             </aside>
           </div>
 
-          <nav className="min-w-0 overflow-x-auto border-t border-[var(--color-line)] bg-[var(--color-panel)] px-4 py-3">
-            <div className="flex min-w-max gap-2.5">
+          <nav className="filmstrip min-w-0 overflow-x-auto border-t border-[var(--color-line)] bg-[var(--color-panel)] px-4 py-3">
+            <div className="flex min-w-max gap-3">
               {catalog.photos.map((photo) => {
                 const isSelected = photo.id === catalog.selectedPhotoId;
 
                 return (
                   <button
                     className={[
-                      "group relative h-[112px] w-[142px] overflow-hidden rounded-lg border bg-[var(--color-surface)] text-left transition",
+                      "thumb group relative h-[116px] w-[148px] overflow-hidden rounded-lg border bg-[var(--color-surface)] text-left transition",
                       "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
                       isSelected
-                        ? "border-[var(--color-ink)]"
+                        ? "selected border-[var(--color-ink)]"
                         : "border-[var(--color-line)] hover:border-[var(--color-muted)]",
                     ].join(" ")}
+                    aria-current={isSelected ? "true" : undefined}
                     key={photo.id}
                     onClick={() =>
                       setCatalog((current) => selectPhoto(current, photo.id))
@@ -197,12 +221,12 @@ function App() {
                   >
                     <img
                       alt=""
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
                       src={photo.thumbnailUrl}
                     />
-                    <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-[linear-gradient(to_top,color-mix(in_oklch,var(--color-ink)_70%,transparent),transparent)] px-3 pb-2 pt-8 text-xs font-medium text-[var(--color-on-image)]">
-                      <span>{photo.fileName}</span>
-                      <span>{photo.rating ? `${photo.rating}★` : "Unrated"}</span>
+                    <span className="thumb-caption absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 px-3 pb-2.5 pt-9 text-xs font-medium text-[var(--color-on-image)]">
+                      <span className="min-w-0 truncate">{photo.fileName}</span>
+                      <span className="shrink-0">{photo.rating ? `${photo.rating}★` : "Unrated"}</span>
                     </span>
                   </button>
                 );
@@ -215,6 +239,17 @@ function App() {
   );
 }
 
+function formatConnection(connection: CameraDevice["connection"]) {
+  const labels: Record<CameraDevice["connection"], string> = {
+    image_capture: "USB connected",
+    mock: "Preview data",
+    nikon_sdk: "Nikon SDK connected",
+    usb: "USB connected",
+  };
+
+  return labels[connection];
+}
+
 function PhotoDetails({ photo }: { photo: CameraPhoto }) {
   const capturedAt = new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
@@ -222,26 +257,26 @@ function PhotoDetails({ photo }: { photo: CameraPhoto }) {
   }).format(new Date(photo.capturedAt));
 
   return (
-    <dl className="mt-5 space-y-4 text-sm">
-      <div>
+    <dl className="details-list mt-5 space-y-4 text-sm">
+      <div className="detail-row">
         <dt className="text-[var(--color-muted)]">Captured</dt>
-        <dd className="mt-1 font-medium">{capturedAt}</dd>
+        <dd className="mt-1 font-medium leading-6">{capturedAt}</dd>
       </div>
-      <div>
+      <div className="detail-row">
         <dt className="text-[var(--color-muted)]">Format</dt>
         <dd className="mt-1 font-medium uppercase">{photo.fileType}</dd>
       </div>
-      <div>
+      <div className="detail-row">
         <dt className="text-[var(--color-muted)]">Resolution</dt>
         <dd className="mt-1 font-medium">
           {photo.width} x {photo.height}
         </dd>
       </div>
-      <div>
+      <div className="detail-row">
         <dt className="text-[var(--color-muted)]">Size</dt>
         <dd className="mt-1 font-medium">{photo.sizeMb.toFixed(1)} MB</dd>
       </div>
-      <div>
+      <div className="detail-row">
         <dt className="text-[var(--color-muted)]">Write-back</dt>
         <dd className="mt-1 font-medium">Nikon SDK adapter</dd>
       </div>

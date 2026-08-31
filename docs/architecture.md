@@ -26,6 +26,21 @@ contracts:
 The frontend already calls these commands through `src/lib/cameraApi.ts`. In a
 browser it falls back to mock data; in Tauri it invokes Rust commands.
 
+## Real-Camera Photo Mapping
+
+PTP or ImageCaptureCore image objects map into `CameraPhoto` as follows:
+
+- `id`: stable app id derived from camera id and object handle.
+- `objectHandle`: provider object handle used for follow-up preview/download
+  requests.
+- `storageId`: camera storage id when the provider exposes one.
+- `fileName`, `fileType`, `sizeMb`: object metadata from the camera.
+- `capturedAt`: capture timestamp when available, otherwise import/list time.
+- `previewUrl`, `thumbnailUrl`: local cached asset URLs after preview extraction.
+- `canDownloadOriginal`: whether the app can request the original file.
+- `hasEmbeddedPreview`: whether a camera/object preview is available without RAW
+  decoding.
+
 ## Native Integration Plan
 
 1. Add an ImageCaptureCore bridge for USB camera discovery and object listing.

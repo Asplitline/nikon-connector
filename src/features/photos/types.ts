@@ -10,7 +10,7 @@ export interface CameraDevice {
   id: string;
   name: string;
   model: string;
-  connection: "usb" | "mock";
+  connection: "usb" | "mock" | "image_capture" | "nikon_sdk";
 }
 
 export interface CameraPhoto {
@@ -25,6 +25,10 @@ export interface CameraPhoto {
   sizeMb: number;
   previewUrl: string;
   thumbnailUrl: string;
+  objectHandle?: string;
+  storageId?: string;
+  canDownloadOriginal?: boolean;
+  hasEmbeddedPreview?: boolean;
 }
 
 export interface PhotoCatalogState {
