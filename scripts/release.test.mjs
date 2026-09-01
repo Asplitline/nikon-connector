@@ -1,0 +1,131 @@
+import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { describe, expect, test, afterEach } from "vitest";
+
+import {
+  parseVersion,
+  prepareChangelog,
+  readProjectVersions,
+  setProjectVersion,
+  tagForVersion,
+  tauriBuildArgs,
+  validateReleaseState,
+} from "./release.mjs";
+
+const roots = [];
+
+async function makeFixture(version = "0.1.0") {
+  const root = await mkdtemp(join(tmpdir(), "nikon-release-"));
+  roots.push(root);
+  await mkdir(join(root, "src-tauri"), { recursive: true });
+
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "nikon-connector", private: true, version }, null, 2)}\n`,
+  );
+  await writeFile(
+    join(root, "src-tauri", "tauri.conf.json"),
+    `${JSON.stringify({ productName: "Nikon Connector", version }, null, 2)}\n`,
+  );
+  await writeFile(
+    join(root, "src-tauri", "Cargo.toml"),
+    `[package]\nname = "nikon-connector"\nversion = "${version}"\nedition = "2021"\n`,
+  );
+  await writeFile(
+    join(root, "src-tauri", "Cargo.lock"),
+    `version = 4\n\n[[package]]\nname = "nikon-connector"\nversion = "${version}"\n\n[[package]]\nname = "tauri"\nversion = "2.0.0"\n`,
+  );
+  await writeFile(
+    join(root, "CHANGELOG.md"),
+    `# Changelog\n\nAll notable changes to Nikon Connector are documented in this file.\n\n## [Unreleased]\n\n### Added\n\n- Tag-driven release workflow.\n\n`,
+  );
+
+  return root;
+}
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+describe("release version parsing", () => {
+  test("accepts SemVer versions and rejects prerelease or prefixed input", () => {
+    expect(parseVersion("1.2.3")).toEqual({ major: 1, minor: 2, patch: 3, value: "1.2.3" });
+    expect(() => parseVersion("v1.2.3")).toThrow(/SemVer/);
+    expect(() => parseVersion("1.2.3-beta.1")).toThrow(/SemVer/);
+  });
+
+  test("formats the annotated release tag from a version", () => {
+    expect(tagForVersion("1.2.3")).toBe("v1.2.3");
+  });
+});
+
+describe("Tauri build arguments", () => {
+  test("defaults to app bundling and allows explicit bundle overrides", () => {
+    expect(tauriBuildArgs([])).toEqual(["run", "tauri", "build", "--bundles", "app"]);
+    expect(tauriBuildArgs(["--bundles", "dmg"])).toEqual([
+      "run",
+      "tauri",
+      "build",
+      "--bundles",
+      "dmg",
+    ]);
+  });
+});
+
+describe("project version files", () => {
+  test("reads matching versions from app and Tauri metadata", async () => {
+    const root = await makeFixture("0.2.3");
+
+    await expect(readProjectVersions(root)).resolves.toEqual({
+      "package.json": "0.2.3",
+      "src-tauri/tauri.conf.json": "0.2.3",
+      "src-tauri/Cargo.toml": "0.2.3",
+      "src-tauri/Cargo.lock": "0.2.3",
+    });
+  });
+
+  test("updates every release version source together", async () => {
+    const root = await makeFixture("0.1.0");
+
+    await setProjectVersion(root, "0.2.0");
+
+    await expect(readProjectVersions(root)).resolves.toEqual({
+      "package.json": "0.2.0",
+      "src-tauri/tauri.conf.json": "0.2.0",
+      "src-tauri/Cargo.toml": "0.2.0",
+      "src-tauri/Cargo.lock": "0.2.0",
+    });
+  });
+
+  test("reports mismatched release metadata before packaging", async () => {
+    const root = await makeFixture("0.1.0");
+    await writeFile(
+      join(root, "src-tauri", "tauri.conf.json"),
+      `${JSON.stringify({ productName: "Nikon Connector", version: "0.1.1" }, null, 2)}\n`,
+    );
+
+    await expect(validateReleaseState(root)).rejects.toThrow(/Version mismatch/);
+  });
+});
+
+describe("changelog promotion", () => {
+  test("promotes unreleased notes into a dated version section", async () => {
+    const root = await makeFixture("0.1.0");
+
+    await prepareChangelog(root, "0.2.0", "2026-09-01");
+
+    await expect(readFile(join(root, "CHANGELOG.md"), "utf8")).resolves.toBe(
+      `# Changelog\n\nAll notable changes to Nikon Connector are documented in this file.\n\n## [Unreleased]\n\n## [0.2.0] - 2026-09-01\n\n### Added\n\n- Tag-driven release workflow.\n\n`,
+    );
+  });
+
+  test("rejects duplicate version sections", async () => {
+    const root = await makeFixture("0.1.0");
+    await prepareChangelog(root, "0.2.0", "2026-09-01");
+
+    await expect(prepareChangelog(root, "0.2.0", "2026-09-01")).rejects.toThrow(
+      /already exists/,
+    );
+  });
+});

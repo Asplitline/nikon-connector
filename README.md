@@ -15,6 +15,19 @@ bun run tauri dev
 Use `bun run check` before shipping frontend changes. Keep automated tests
 focused on core behavior and let lint catch broad TypeScript/React issues.
 
+## Releases
+
+Release metadata is synchronized through the local tag-driven workflow:
+
+```bash
+bun run release:prepare -- 0.2.0
+bun run release:check
+bun run release:tag
+bun run release:build
+```
+
+See `docs/release.md` for version, changelog, tag, and packaging rules.
+
 ## Nikon SDK
 
 Place the official Nikon Remote Module SDK 2.0.0 files for Z6III in

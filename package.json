@@ -1,7 +1,7 @@
 {
   "name": "nikon-connector",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "packageManager": "bun@1.4.0",
   "scripts": {
@@ -10,6 +10,10 @@
     "check": "bun run lint && bun run build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "release:build": "node scripts/release.mjs build",
+    "release:check": "node scripts/release.mjs check",
+    "release:prepare": "node scripts/release.mjs prepare",
+    "release:tag": "node scripts/release.mjs tag",
     "test": "vitest run",
     "tauri": "tauri"
   },
