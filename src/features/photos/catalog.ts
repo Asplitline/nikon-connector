@@ -21,6 +21,42 @@ export function selectPhoto(
   };
 }
 
+export function selectPhotoByOffset(
+  state: PhotoCatalogState,
+  offset: number,
+): PhotoCatalogState {
+  if (state.photos.length === 0) {
+    return state;
+  }
+
+  const currentIndex = Math.max(
+    0,
+    state.photos.findIndex((photo) => photo.id === state.selectedPhotoId),
+  );
+  const nextIndex = clampIndex(currentIndex + offset, state.photos.length);
+
+  return {
+    ...state,
+    selectedPhotoId: state.photos[nextIndex].id,
+  };
+}
+
+export function selectPhotoEdge(
+  state: PhotoCatalogState,
+  edge: "first" | "last",
+): PhotoCatalogState {
+  if (state.photos.length === 0) {
+    return state;
+  }
+
+  const nextIndex = edge === "first" ? 0 : state.photos.length - 1;
+
+  return {
+    ...state,
+    selectedPhotoId: state.photos[nextIndex].id,
+  };
+}
+
 export function updatePhotoRating(
   state: PhotoCatalogState,
   photoId: string,
@@ -38,4 +74,8 @@ export function getSelectedPhoto(
   state: PhotoCatalogState,
 ): CameraPhoto | undefined {
   return state.photos.find((photo) => photo.id === state.selectedPhotoId);
+}
+
+function clampIndex(index: number, length: number) {
+  return Math.min(Math.max(index, 0), length - 1);
 }

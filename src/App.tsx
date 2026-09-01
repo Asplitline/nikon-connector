@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createPhotoCatalog,
   getSelectedPhoto,
   selectPhoto,
+  selectPhotoByOffset,
+  selectPhotoEdge,
   updatePhotoRating,
 } from "./features/photos/catalog";
+import {
+  getPhotoReviewShortcut,
+  shouldIgnorePhotoReviewShortcut,
+} from "./features/photos/keyboard";
 import { StarRating } from "./features/photos/StarRating";
 import type {
   CameraConnectionState,
@@ -67,7 +73,7 @@ function App() {
           ? "Needs attention"
           : "No camera";
 
-  async function handleRatingChange(photo: CameraPhoto, rating: Rating) {
+  const handleRatingChange = useCallback(async (photo: CameraPhoto, rating: Rating) => {
     setRatingError(null);
     setCatalog((current) => updatePhotoRating(current, photo.id, rating));
 
@@ -82,7 +88,44 @@ function App() {
           : "Rating write-back failed. The camera may not support this operation.",
       );
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (shouldIgnorePhotoReviewShortcut(event.target)) {
+        return;
+      }
+
+      const shortcut = getPhotoReviewShortcut(event.key);
+
+      if (!shortcut) {
+        return;
+      }
+
+      if (shortcut.type === "move") {
+        event.preventDefault();
+        setCatalog((current) => selectPhotoByOffset(current, shortcut.offset));
+        return;
+      }
+
+      if (shortcut.type === "edge") {
+        event.preventDefault();
+        setCatalog((current) => selectPhotoEdge(current, shortcut.edge));
+        return;
+      }
+
+      if (connectionState === "connected" && selectedPhoto) {
+        event.preventDefault();
+        void handleRatingChange(selectedPhoto, shortcut.rating);
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [connectionState, handleRatingChange, selectedPhoto]);
 
   return (
     <main className="app-shell h-screen overflow-hidden bg-[var(--color-canvas)] text-[var(--color-ink)]">
@@ -117,7 +160,12 @@ function App() {
             <p className="section-label">Device</p>
             {activeCamera ? (
               <div className="device-card rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-3.5">
-                <p className="text-base font-semibold leading-snug">{activeCamera.name}</p>
+                <p
+                  className="device-name text-base font-semibold leading-snug"
+                  title={activeCamera.name}
+                >
+                  {activeCamera.name}
+                </p>
                 <p className="mt-1.5 text-sm text-[var(--color-muted)]">
                   {formatConnection(activeCamera.connection)}
                 </p>
@@ -149,8 +197,13 @@ function App() {
         <section className="workspace grid h-full min-h-0 grid-rows-[84px_minmax(0,1fr)_156px]">
           <header className="top-bar flex min-h-0 items-center justify-between gap-5 border-b border-[var(--color-line)] px-6 py-4">
             <div className="min-w-0">
-              <p className="truncate text-sm text-[var(--color-muted)]">{status}</p>
-              <h2 className="mt-1 truncate text-2xl font-semibold leading-tight">
+              <p className="status-text truncate text-sm text-[var(--color-muted)]" title={status}>
+                {status}
+              </p>
+              <h2
+                className="file-title mt-1 truncate text-2xl font-semibold leading-tight"
+                title={selectedPhoto?.fileName ?? "No photo selected"}
+              >
                 {selectedPhoto?.fileName ?? "No photo selected"}
               </h2>
             </div>
@@ -217,6 +270,7 @@ function App() {
                     onClick={() =>
                       setCatalog((current) => selectPhoto(current, photo.id))
                     }
+                    title={photo.fileName}
                     type="button"
                   >
                     <img

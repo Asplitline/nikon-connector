@@ -3,6 +3,8 @@ import {
   createPhotoCatalog,
   getSelectedPhoto,
   selectPhoto,
+  selectPhotoByOffset,
+  selectPhotoEdge,
   updatePhotoRating,
 } from "./catalog";
 import type { CameraPhoto } from "./types";
@@ -34,6 +36,19 @@ const photos: CameraPhoto[] = [
     previewUrl: "mock://preview/dsc-1002",
     thumbnailUrl: "mock://thumb/dsc-1002",
   },
+  {
+    id: "dsc-1003",
+    cameraId: "z6iii",
+    fileName: "DSC_1003.JPG",
+    capturedAt: "2026-08-31T10:22:00.000Z",
+    rating: 4,
+    fileType: "jpg",
+    width: 6048,
+    height: 4024,
+    sizeMb: 21.1,
+    previewUrl: "mock://preview/dsc-1003",
+    thumbnailUrl: "mock://thumb/dsc-1003",
+  },
 ];
 
 describe("photo catalog", () => {
@@ -59,5 +74,24 @@ describe("photo catalog", () => {
       0,
     );
     expect(catalog.selectedPhotoId).toBe("dsc-1001");
+  });
+
+  it("selects photos by offset and clamps at catalog edges", () => {
+    const first = createPhotoCatalog(photos);
+    const second = selectPhotoByOffset(first, 1);
+    const third = selectPhotoByOffset(second, 1);
+
+    expect(second.selectedPhotoId).toBe("dsc-1002");
+    expect(third.selectedPhotoId).toBe("dsc-1003");
+    expect(selectPhotoByOffset(third, 1).selectedPhotoId).toBe("dsc-1003");
+    expect(selectPhotoByOffset(first, -1).selectedPhotoId).toBe("dsc-1001");
+  });
+
+  it("selects first or last photo without wrapping", () => {
+    const second = selectPhotoByOffset(createPhotoCatalog(photos), 1);
+
+    expect(selectPhotoEdge(second, "first").selectedPhotoId).toBe("dsc-1001");
+    expect(selectPhotoEdge(second, "last").selectedPhotoId).toBe("dsc-1003");
+    expect(selectPhotoEdge(createPhotoCatalog([]), "last").selectedPhotoId).toBeNull();
   });
 });
