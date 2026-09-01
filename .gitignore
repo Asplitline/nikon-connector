@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+native/macos-camera-helper/.build
 
 # Editor directories and files
 .vscode/*

@@ -33,3 +33,14 @@ See `docs/release.md` for version, changelog, tag, and packaging rules.
 Place the official Nikon Remote Module SDK 2.0.0 files for Z6III in
 `src-tauri/vendor/NikonSDK/`. The current Rust commands return mock data so the
 frontend and rating workflow can be developed before SDK integration.
+
+The native macOS helper is built separately with Swift Package Manager:
+
+```bash
+swift build --package-path native/macos-camera-helper
+swift run --package-path native/macos-camera-helper nikon-camera-helper list-cameras
+```
+
+It currently returns empty JSON arrays for `list-cameras` and `list-photos`. The
+`set-rating` command validates ratings from 0 through 5, then reports that the
+Nikon SDK is unavailable until the SDK bridge is implemented.
