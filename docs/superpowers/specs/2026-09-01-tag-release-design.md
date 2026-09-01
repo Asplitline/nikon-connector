@@ -30,6 +30,14 @@ validated version tags.
 - `bun run release:build` runs `release:check`, frontend checks, tests, and
   `tauri build --bundles app` by default. Explicit bundle arguments such as
   `-- --bundles dmg` are passed through for full desktop release machines.
+- `bun run release:package` builds the default `.app` bundle and archives it to
+  `dist/releases/Nikon-Connector-v<version>-macos-aarch64.zip`.
+- `bun run release:push` pushes the current branch and annotated release tag to
+  `origin`.
+- `bun run release:github` creates a GitHub Release from the pushed tag using
+  `gh release create` and uploads the packaged zip asset.
+- `bun run release:publish` runs package, push, and GitHub release creation in
+  order.
 
 ## Error Handling
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import process from "node:process";
@@ -53,6 +53,30 @@ export function tauriBuildArgs(argv = []) {
   }
 
   return ["run", "tauri", "build", "--bundles", "app", ...argv];
+}
+
+export function defaultReleaseArchivePath(root, version) {
+  return join(
+    root,
+    "dist",
+    "releases",
+    `Nikon-Connector-v${parseVersion(version).value}-macos-aarch64.zip`,
+  );
+}
+
+export function buildGithubReleaseArgs({ tag, title, notes, assets = [] }) {
+  parseTag(tag);
+  return [
+    "release",
+    "create",
+    tag,
+    ...assets,
+    "--title",
+    title,
+    "--notes",
+    notes,
+    "--verify-tag",
+  ];
 }
 
 async function readJson(path) {
@@ -166,6 +190,27 @@ export async function prepareChangelog(root, inputVersion, date = today()) {
   await writeFile(changelogPath, next.endsWith("\n") ? next : `${next}\n`);
 }
 
+export async function changelogNotesForVersion(root, inputVersion) {
+  const version = parseVersion(inputVersion).value;
+  const changelog = await readFile(join(root, "CHANGELOG.md"), "utf8");
+  const heading = new RegExp(`^## \\[${escapeRegExp(version)}\\] - \\d{4}-\\d{2}-\\d{2}$`, "m");
+  const match = heading.exec(changelog);
+
+  if (!match) {
+    throw new Error(`CHANGELOG.md must contain a dated section for ${version}.`);
+  }
+
+  const notesStart = match.index + match[0].length;
+  const nextSection = changelog.indexOf("\n## [", notesStart);
+  const notes = changelog.slice(notesStart, nextSection === -1 ? changelog.length : nextSection).trim();
+
+  if (notes.length === 0) {
+    throw new Error(`CHANGELOG.md section for ${version} has no release notes.`);
+  }
+
+  return notes;
+}
+
 export async function validateReleaseState(root = process.cwd(), options = {}) {
   const versions = await readProjectVersions(root);
   const entries = Object.entries(versions);
@@ -223,6 +268,34 @@ async function run(command, args, options = {}) {
   });
 }
 
+async function runCapture(command, args, options = {}) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd ?? process.cwd(),
+      encoding: "utf8",
+      shell: false,
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve(stdout.trim());
+      } else {
+        reject(
+          new Error(`${command} ${args.join(" ")} exited with code ${code}.\n${stderr.trim()}`),
+        );
+      }
+    });
+  });
+}
+
 async function tagExists(tag) {
   try {
     await new Promise((resolve, reject) => {
@@ -246,6 +319,63 @@ async function createAnnotatedTag(root = process.cwd()) {
   }
   await run("git", ["tag", "-a", tag, "-m", `Release ${tag}`], { cwd: root });
   return { version, tag };
+}
+
+async function pushReleaseTag(root = process.cwd()) {
+  const { tag } = await validateReleaseState(root);
+  if (!(await tagExists(tag))) {
+    throw new Error(`Git tag ${tag} does not exist. Run bun run release:tag first.`);
+  }
+
+  const branch = await runCapture("git", ["branch", "--show-current"], { cwd: root });
+  if (!branch) {
+    throw new Error("Cannot push release from a detached HEAD.");
+  }
+
+  await run("git", ["push", "origin", branch], { cwd: root });
+  await run("git", ["push", "origin", tag], { cwd: root });
+  return { branch, tag };
+}
+
+async function packageRelease(root = process.cwd(), argv = []) {
+  const { version } = await validateReleaseState(root);
+  await run("bun", ["run", "check"], { cwd: root });
+  await run("bun", ["run", "test"], { cwd: root });
+  await run("bun", tauriBuildArgs(argv), { cwd: root });
+
+  const archivePath = defaultReleaseArchivePath(root, version);
+  await mkdir(join(root, "dist", "releases"), { recursive: true });
+  await run(
+    "ditto",
+    [
+      "-c",
+      "-k",
+      "--keepParent",
+      join(root, "src-tauri", "target", "release", "bundle", "macos", "Nikon Connector.app"),
+      archivePath,
+    ],
+    { cwd: root },
+  );
+  return archivePath;
+}
+
+async function publishGithubRelease(root = process.cwd(), assets = []) {
+  const { version, tag } = await validateReleaseState(root);
+  const notes = await changelogNotesForVersion(root, version);
+  const releaseAssets = assets.length > 0 ? assets : [defaultReleaseArchivePath(root, version)];
+
+  await run(
+    "gh",
+    buildGithubReleaseArgs({
+      tag,
+      title: `Nikon Connector ${tag}`,
+      notes,
+      assets: releaseAssets,
+    }),
+    { cwd: root },
+  );
+
+  return { tag, assets: releaseAssets };
 }
 
 async function cli(argv) {
@@ -283,9 +413,31 @@ async function cli(argv) {
       await run("bun", tauriBuildArgs(argv.slice(1)), { cwd: root });
       break;
     }
+    case "package": {
+      const archivePath = await packageRelease(root, argv.slice(1));
+      console.log(`Packaged release artifact: ${archivePath}`);
+      break;
+    }
+    case "push": {
+      const { branch, tag } = await pushReleaseTag(root);
+      console.log(`Pushed ${branch} and ${tag} to origin.`);
+      break;
+    }
+    case "github": {
+      const { tag, assets } = await publishGithubRelease(root, argv.slice(1));
+      console.log(`Published GitHub Release ${tag} with ${assets.length} asset(s).`);
+      break;
+    }
+    case "publish": {
+      const archivePath = await packageRelease(root);
+      await pushReleaseTag(root);
+      const { tag } = await publishGithubRelease(root, [archivePath]);
+      console.log(`Published ${tag} to GitHub.`);
+      break;
+    }
     default:
       throw new Error(
-        "Usage: node scripts/release.mjs <check|prepare|tag|build> [version] [--tag vX.Y.Z]",
+        "Usage: node scripts/release.mjs <check|prepare|tag|build|package|push|github|publish> [version] [--tag vX.Y.Z]",
       );
   }
 }

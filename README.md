@@ -23,7 +23,7 @@ Release metadata is synchronized through the local tag-driven workflow:
 bun run release:prepare -- 0.2.0
 bun run release:check
 bun run release:tag
-bun run release:build
+bun run release:publish
 ```
 
 See `docs/release.md` for version, changelog, tag, and packaging rules.

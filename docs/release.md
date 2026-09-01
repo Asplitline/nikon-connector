@@ -45,22 +45,24 @@ fails before changing files when the version is not valid SemVer.
 
 ```bash
 bun run release:tag
-git push origin main
-git push origin v0.2.0
 ```
 
 `release:tag` reads the synchronized project version and creates an annotated
 tag named `v<version>`. It fails if the tag already exists.
 
-## Build Artifacts
+## Package Artifacts
 
 ```bash
-bun run release:build
+bun run release:package
 ```
 
 This command validates release metadata, runs frontend checks, runs tests, and
 then executes `bun run tauri build --bundles app`. Tauri writes the macOS app
-bundle under `src-tauri/target/release/bundle/macos/`.
+bundle under `src-tauri/target/release/bundle/macos/`, then archives it as:
+
+```text
+dist/releases/Nikon-Connector-v<version>-macos-aarch64.zip
+```
 
 To produce a DMG on a full macOS desktop environment with `hdiutil` disk image
 support, pass the bundle target explicitly:
@@ -71,6 +73,38 @@ bun run release:build -- --bundles dmg
 
 DMG creation mounts a temporary disk image. It can fail in restricted shells or
 CI runners that cannot create disk devices.
+
+## Publish To GitHub
+
+GitHub releases are created from the annotated version tag. The release notes
+come from that version's section in `CHANGELOG.md`, and the packaged zip is
+uploaded as the release asset.
+
+```bash
+bun run release:push
+bun run release:github
+```
+
+`release:push` pushes the current branch and `v<version>` tag to `origin`.
+`release:github` runs `gh release create v<version> ... --verify-tag`, so it
+requires the GitHub CLI to be installed and authenticated.
+
+To package, push, and publish in one command:
+
+```bash
+bun run release:publish
+```
+
+The full release flow is:
+
+```bash
+bun run release:prepare -- 0.2.0
+git diff
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md
+git commit -m "chore: prepare v0.2.0 release"
+bun run release:tag
+bun run release:publish
+```
 
 ## Rebuild Or Retag
 

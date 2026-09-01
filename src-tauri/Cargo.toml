@@ -1,6 +1,6 @@
 [package]
 name = "nikon-connector"
-version = "0.1.1"
+version = "0.1.2"
 description = "Preview and rate Nikon Z6III camera-card photos on macOS."
 authors = ["shouyong"]
 edition = "2021"

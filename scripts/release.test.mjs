@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import { describe, expect, test, afterEach } from "vitest";
 
 import {
+  buildGithubReleaseArgs,
+  changelogNotesForVersion,
+  defaultReleaseArchivePath,
   parseVersion,
   prepareChangelog,
   readProjectVersions,
@@ -38,7 +41,7 @@ async function makeFixture(version = "0.1.0") {
   );
   await writeFile(
     join(root, "CHANGELOG.md"),
-    `# Changelog\n\nAll notable changes to Nikon Connector are documented in this file.\n\n## [Unreleased]\n\n### Added\n\n- Tag-driven release workflow.\n\n`,
+    `# Changelog\n\nAll notable changes to Nikon Connector are documented in this file.\n\n## [Unreleased]\n\n### Added\n\n- Tag-driven release workflow.\n\n## [${version}] - 2026-08-31\n\n### Added\n\n- Initial app shell.\n\n`,
   );
 
   return root;
@@ -116,7 +119,7 @@ describe("changelog promotion", () => {
     await prepareChangelog(root, "0.2.0", "2026-09-01");
 
     await expect(readFile(join(root, "CHANGELOG.md"), "utf8")).resolves.toBe(
-      `# Changelog\n\nAll notable changes to Nikon Connector are documented in this file.\n\n## [Unreleased]\n\n## [0.2.0] - 2026-09-01\n\n### Added\n\n- Tag-driven release workflow.\n\n`,
+      `# Changelog\n\nAll notable changes to Nikon Connector are documented in this file.\n\n## [Unreleased]\n\n## [0.2.0] - 2026-09-01\n\n### Added\n\n- Tag-driven release workflow.\n\n## [0.1.0] - 2026-08-31\n\n### Added\n\n- Initial app shell.\n\n`,
     );
   });
 
@@ -126,6 +129,43 @@ describe("changelog promotion", () => {
 
     await expect(prepareChangelog(root, "0.2.0", "2026-09-01")).rejects.toThrow(
       /already exists/,
+    );
+  });
+});
+
+describe("GitHub release publishing", () => {
+  test("extracts changelog notes for the release version", async () => {
+    const root = await makeFixture("0.1.0");
+
+    await expect(changelogNotesForVersion(root, "0.1.0")).resolves.toBe(
+      "### Added\n\n- Initial app shell.",
+    );
+  });
+
+  test("builds gh release create arguments from a tag and artifact", () => {
+    expect(
+      buildGithubReleaseArgs({
+        tag: "v0.1.1",
+        title: "Nikon Connector v0.1.1",
+        notes: "### Added\n\n- Release tooling.",
+        assets: ["dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.zip"],
+      }),
+    ).toEqual([
+      "release",
+      "create",
+      "v0.1.1",
+      "dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.zip",
+      "--title",
+      "Nikon Connector v0.1.1",
+      "--notes",
+      "### Added\n\n- Release tooling.",
+      "--verify-tag",
+    ]);
+  });
+
+  test("uses the conventional macOS archive path for GitHub assets", () => {
+    expect(defaultReleaseArchivePath("/repo", "0.1.1")).toBe(
+      "/repo/dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.zip",
     );
   });
 });

@@ -6,6 +6,13 @@ This project follows SemVer and keeps release notes in Keep a Changelog style.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-01
+
+### Added
+
+- GitHub Release publishing commands that push the release tag and upload the
+  packaged macOS artifact.
+
 ## [0.1.1] - 2026-09-01
 
 ### Added
