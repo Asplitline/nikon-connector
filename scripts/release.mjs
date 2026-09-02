@@ -64,6 +64,10 @@ export function defaultReleaseInstallerPath(root, version) {
   );
 }
 
+export function defaultUpdaterManifestPath(root) {
+  return join(root, "dist", "releases", "latest.json");
+}
+
 export function tauriDmgPath(root, version) {
   return join(
     root,
@@ -74,6 +78,10 @@ export function tauriDmgPath(root, version) {
     "dmg",
     `Nikon Connector_${parseVersion(version).value}_aarch64.dmg`,
   );
+}
+
+export function tauriUpdaterManifestPath(root) {
+  return join(root, "src-tauri", "target", "release", "bundle", "dmg", "latest.json");
 }
 
 export function buildGithubReleaseArgs({ tag, title, notes, assets = [] }) {
@@ -356,15 +364,20 @@ async function packageRelease(root = process.cwd(), argv = []) {
   await run("bun", tauriBuildArgs(argv), { cwd: root });
 
   const installerPath = defaultReleaseInstallerPath(root, version);
+  const updaterManifestPath = defaultUpdaterManifestPath(root);
   await mkdir(join(root, "dist", "releases"), { recursive: true });
   await copyFile(tauriDmgPath(root, version), installerPath);
-  return installerPath;
+  await copyFile(tauriUpdaterManifestPath(root), updaterManifestPath);
+  return [installerPath, updaterManifestPath];
 }
 
 async function publishGithubRelease(root = process.cwd(), assets = []) {
   const { version, tag } = await validateReleaseState(root);
   const notes = await changelogNotesForVersion(root, version);
-  const releaseAssets = assets.length > 0 ? assets : [defaultReleaseInstallerPath(root, version)];
+  const releaseAssets =
+    assets.length > 0
+      ? assets
+      : [defaultReleaseInstallerPath(root, version), defaultUpdaterManifestPath(root)];
 
   await run(
     "gh",
@@ -416,8 +429,8 @@ async function cli(argv) {
       break;
     }
     case "package": {
-      const installerPath = await packageRelease(root, argv.slice(1));
-      console.log(`Packaged release installer: ${installerPath}`);
+      const assets = await packageRelease(root, argv.slice(1));
+      console.log(`Packaged release assets: ${assets.join(", ")}`);
       break;
     }
     case "push": {
@@ -431,9 +444,9 @@ async function cli(argv) {
       break;
     }
     case "publish": {
-      const installerPath = await packageRelease(root);
+      const assets = await packageRelease(root);
       await pushReleaseTag(root);
-      const { tag } = await publishGithubRelease(root, [installerPath]);
+      const { tag } = await publishGithubRelease(root, assets);
       console.log(`Published ${tag} to GitHub.`);
       break;
     }

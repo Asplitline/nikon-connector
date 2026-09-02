@@ -19,8 +19,28 @@ import type {
   PhotoCatalogState,
   Rating,
 } from "./features/photos/types";
+import {
+  applyZoomAction,
+  createFitZoomState,
+  formatZoomLabel,
+  type PhotoZoomState,
+} from "./features/photos/zoom";
+import {
+  checkForUpdate,
+  getAppInfo,
+  installPendingUpdate,
+  type AppInfo,
+  type AvailableUpdate,
+} from "./lib/appApi";
 import { listCameras, listPhotos, setPhotoRating } from "./lib/cameraApi";
 import "./index.css";
+
+type UpdateStatus =
+  | { state: "idle"; message: string }
+  | { state: "checking"; message: string }
+  | { state: "available"; message: string; update: AvailableUpdate }
+  | { state: "installing"; message: string }
+  | { state: "error"; message: string };
 
 function App() {
   const [connectionState, setConnectionState] =
@@ -31,6 +51,14 @@ function App() {
   );
   const [status, setStatus] = useState("Looking for Nikon cameras...");
   const [ratingError, setRatingError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<PhotoZoomState>(() => createFitZoomState());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({
+    state: "idle",
+    message: "Updates have not been checked in this session.",
+  });
 
   useEffect(() => {
     async function loadCamera() {
@@ -72,6 +100,84 @@ function App() {
         : connectionState === "error"
           ? "Needs attention"
           : "No camera";
+  const zoomLabel = formatZoomLabel(zoom);
+
+  useEffect(() => {
+    void getAppInfo().then(setAppInfo).catch((error) => {
+      setUpdateStatus({
+        state: "error",
+        message:
+          error instanceof Error ? error.message : "Could not read app info.",
+      });
+    });
+  }, []);
+
+  const handleCheckForUpdate = useCallback(async () => {
+    setUpdateStatus({ state: "checking", message: "Checking GitHub Releases..." });
+
+    try {
+      const update = await checkForUpdate();
+
+      if (!update) {
+        setUpdateStatus({
+          state: "idle",
+          message: "No update is available for this version.",
+        });
+        return;
+      }
+
+      setUpdateStatus({
+        state: "available",
+        message: `Version ${update.version} is available.`,
+        update,
+      });
+    } catch (error) {
+      setUpdateStatus({
+        state: "error",
+        message:
+          error instanceof Error ? error.message : "Update check failed.",
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!autoUpdateEnabled || !appInfo) {
+      return;
+    }
+
+    void Promise.resolve().then(handleCheckForUpdate);
+  }, [appInfo, autoUpdateEnabled, handleCheckForUpdate]);
+
+  const handleInstallUpdate = useCallback(async () => {
+    setUpdateStatus({ state: "installing", message: "Downloading update..." });
+
+    try {
+      await installPendingUpdate((event) => {
+        if (event.event === "Started") {
+          setUpdateStatus({
+            state: "installing",
+            message: event.data.contentLength
+              ? `Downloading ${formatBytes(event.data.contentLength)}...`
+              : "Downloading update...",
+          });
+          return;
+        }
+
+        if (event.event === "Finished") {
+          setUpdateStatus({
+            state: "installing",
+            message: "Installing update and relaunching...",
+          });
+        }
+      });
+    } catch (error) {
+      setUpdateStatus({
+        state: "error",
+        message:
+          error instanceof Error ? error.message : "Update installation failed.",
+      });
+    }
+  }, []);
 
   const handleRatingChange = useCallback(async (photo: CameraPhoto, rating: Rating) => {
     setRatingError(null);
@@ -104,12 +210,14 @@ function App() {
 
       if (shortcut.type === "move") {
         event.preventDefault();
+        setZoom(createFitZoomState());
         setCatalog((current) => selectPhotoByOffset(current, shortcut.offset));
         return;
       }
 
       if (shortcut.type === "edge") {
         event.preventDefault();
+        setZoom(createFitZoomState());
         setCatalog((current) => selectPhotoEdge(current, shortcut.edge));
         return;
       }
@@ -117,6 +225,12 @@ function App() {
       if (shortcut.type === "rate" && connectionState === "connected" && selectedPhoto) {
         event.preventDefault();
         void handleRatingChange(selectedPhoto, shortcut.rating);
+        return;
+      }
+
+      if (shortcut.type === "zoom" && selectedPhoto) {
+        event.preventDefault();
+        setZoom((current) => applyZoomAction(current, shortcut.action));
       }
     }
 
@@ -192,6 +306,14 @@ function App() {
               </div>
             </dl>
           </section>
+
+          <button
+            className="settings-entry mt-8 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-3 text-left text-sm font-semibold text-[var(--color-ink)] transition hover:bg-[var(--color-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
+            onClick={() => setSettingsOpen(true)}
+            type="button"
+          >
+            ⚙ Settings
+          </button>
         </aside>
 
         <section className="workspace grid h-full min-h-0 grid-rows-[84px_minmax(0,1fr)_156px]">
@@ -224,13 +346,60 @@ function App() {
           </header>
 
           <div className="review-area grid min-h-0 grid-cols-[minmax(0,1fr)_232px]">
-            <figure className="photo-stage flex min-h-0 min-w-0 items-center justify-center overflow-hidden bg-[var(--color-stage)] p-6">
+            <figure className="photo-stage relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden bg-[var(--color-stage)] p-6">
               {selectedPhoto ? (
-                <img
-                  alt={selectedPhoto.fileName}
-                  className="review-image max-h-full max-w-full rounded-md object-contain"
-                  src={selectedPhoto.previewUrl}
-                />
+                <>
+                  <div className="zoom-toolbar absolute left-5 top-5 z-10 flex items-center gap-1.5 rounded-lg border border-[var(--color-stage-line)] bg-[var(--color-stage-toolbar)] p-1 text-[var(--color-on-image)]">
+                    <button
+                      aria-label="Zoom out"
+                      className="zoom-button"
+                      onClick={() => setZoom((current) => applyZoomAction(current, "out"))}
+                      title="Zoom out (-)"
+                      type="button"
+                    >
+                      −
+                    </button>
+                    <span className="zoom-readout">{zoomLabel}</span>
+                    <button
+                      aria-label="Zoom in"
+                      className="zoom-button"
+                      onClick={() => setZoom((current) => applyZoomAction(current, "in"))}
+                      title="Zoom in (+)"
+                      type="button"
+                    >
+                      +
+                    </button>
+                    <button
+                      className="zoom-text-button"
+                      onClick={() => setZoom((current) => applyZoomAction(current, "fit"))}
+                      title="Fit to window (F)"
+                      type="button"
+                    >
+                      Fit
+                    </button>
+                    <button
+                      className="zoom-text-button"
+                      onClick={() => setZoom((current) => applyZoomAction(current, "actual"))}
+                      title="Actual size (Z)"
+                      type="button"
+                    >
+                      100%
+                    </button>
+                  </div>
+                  <img
+                    alt={selectedPhoto.fileName}
+                    className={[
+                      "review-image rounded-md object-contain",
+                      zoom.mode === "fit" ? "max-h-full max-w-full" : "scaled",
+                    ].join(" ")}
+                    src={selectedPhoto.previewUrl}
+                    style={
+                      zoom.mode === "scaled"
+                        ? { transform: `scale(${zoom.scale})` }
+                        : undefined
+                    }
+                  />
+                </>
               ) : (
                 <div className="max-w-sm text-center text-[var(--color-stage-muted)]">
                   Connect a Nikon Z6III to start browsing the card.
@@ -267,9 +436,10 @@ function App() {
                     ].join(" ")}
                     aria-current={isSelected ? "true" : undefined}
                     key={photo.id}
-                    onClick={() =>
-                      setCatalog((current) => selectPhoto(current, photo.id))
-                    }
+                    onClick={() => {
+                      setZoom(createFitZoomState());
+                      setCatalog((current) => selectPhoto(current, photo.id));
+                    }}
                     title={photo.fileName}
                     type="button"
                   >
@@ -289,6 +459,17 @@ function App() {
           </nav>
         </section>
       </div>
+      {settingsOpen ? (
+        <SettingsPanel
+          appInfo={appInfo}
+          autoUpdateEnabled={autoUpdateEnabled}
+          onCheckForUpdate={() => void handleCheckForUpdate()}
+          onClose={() => setSettingsOpen(false)}
+          onInstallUpdate={() => void handleInstallUpdate()}
+          onToggleAutoUpdate={setAutoUpdateEnabled}
+          updateStatus={updateStatus}
+        />
+      ) : null}
     </main>
   );
 }
@@ -336,6 +517,133 @@ function PhotoDetails({ photo }: { photo: CameraPhoto }) {
       </div>
     </dl>
   );
+}
+
+function SettingsPanel({
+  appInfo,
+  autoUpdateEnabled,
+  onCheckForUpdate,
+  onClose,
+  onInstallUpdate,
+  onToggleAutoUpdate,
+  updateStatus,
+}: {
+  appInfo: AppInfo | null;
+  autoUpdateEnabled: boolean;
+  onCheckForUpdate: () => void;
+  onClose: () => void;
+  onInstallUpdate: () => void;
+  onToggleAutoUpdate: (enabled: boolean) => void;
+  updateStatus: UpdateStatus;
+}) {
+  const changelog = appInfo?.changelog ?? "Loading development log...";
+  const canInstall = updateStatus.state === "available";
+
+  return (
+    <div className="settings-overlay fixed inset-0 z-20 grid place-items-center px-5 py-6">
+      <button
+        aria-label="Close settings"
+        className="settings-backdrop absolute inset-0"
+        onClick={onClose}
+        type="button"
+      />
+      <section
+        aria-label="Settings"
+        aria-modal="true"
+        className="settings-panel relative z-10 flex max-h-full w-[760px] max-w-full flex-col overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)]"
+        role="dialog"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-[var(--color-line)] px-5 py-4">
+          <div>
+            <p className="section-label">Settings</p>
+            <h2 className="mt-2 text-xl font-semibold">Nikon Connector</h2>
+          </div>
+          <button
+            aria-label="Close settings"
+            className="icon-button"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <section className="settings-section">
+            <p className="section-label">Version</p>
+            <dl className="mt-4 grid gap-3 text-sm">
+              <div className="settings-row">
+                <dt>Name</dt>
+                <dd>{appInfo?.name ?? "Nikon Connector"}</dd>
+              </div>
+              <div className="settings-row">
+                <dt>Version</dt>
+                <dd>{appInfo?.version ?? "Loading..."}</dd>
+              </div>
+              <div className="settings-row">
+                <dt>Update feed</dt>
+                <dd>{appInfo?.updateEndpoint ?? "Loading..."}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="settings-section">
+            <div className="flex items-center justify-between gap-4">
+              <p className="section-label">Updates</p>
+              <label className="toggle-row">
+                <input
+                  checked={autoUpdateEnabled}
+                  onChange={(event) => onToggleAutoUpdate(event.currentTarget.checked)}
+                  type="checkbox"
+                />
+                <span>Auto-check</span>
+              </label>
+            </div>
+            <p className={`update-message ${updateStatus.state}`}>
+              {updateStatus.message}
+            </p>
+            {updateStatus.state === "available" ? (
+              <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
+                Current {updateStatus.update.currentVersion}, available{" "}
+                {updateStatus.update.version}
+              </p>
+            ) : null}
+            <div className="mt-4 flex gap-2">
+              <button
+                className="secondary-button"
+                disabled={updateStatus.state === "checking" || updateStatus.state === "installing"}
+                onClick={onCheckForUpdate}
+                type="button"
+              >
+                Check now
+              </button>
+              <button
+                className="primary-button"
+                disabled={!canInstall}
+                onClick={onInstallUpdate}
+                type="button"
+              >
+                Install
+              </button>
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <p className="section-label">Development Log</p>
+            <pre className="changelog-view mt-4">{changelog}</pre>
+          </section>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export default App;

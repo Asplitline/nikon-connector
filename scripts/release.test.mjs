@@ -7,6 +7,7 @@ import {
   buildGithubReleaseArgs,
   changelogNotesForVersion,
   defaultReleaseInstallerPath,
+  defaultUpdaterManifestPath,
   parseVersion,
   prepareChangelog,
   readProjectVersions,
@@ -167,5 +168,9 @@ describe("GitHub release publishing", () => {
     expect(defaultReleaseInstallerPath("/repo", "0.1.1")).toBe(
       "/repo/dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.dmg",
     );
+  });
+
+  test("uses the conventional updater manifest path for GitHub assets", () => {
+    expect(defaultUpdaterManifestPath("/repo")).toBe("/repo/dist/releases/latest.json");
   });
 });

@@ -9,7 +9,9 @@
   --color-panel: oklch(0.978 0.006 78);
   --color-surface: oklch(0.993 0.004 78);
   --color-stage: oklch(0.19 0.011 72);
+  --color-stage-line: oklch(0.46 0.016 72 / 0.6);
   --color-stage-muted: oklch(0.76 0.018 78);
+  --color-stage-toolbar: oklch(0.23 0.012 72 / 0.9);
   --color-ink: oklch(0.205 0.014 72);
   --color-muted: oklch(0.51 0.018 72);
   --color-line: oklch(0.855 0.011 78);
@@ -133,6 +135,65 @@ button {
     0 2px 10px color-mix(in oklch, var(--color-ink) 18%, transparent);
 }
 
+.review-image.scaled {
+  max-height: none;
+  max-width: none;
+  transform-origin: center;
+  transition: transform 180ms ease;
+}
+
+.zoom-toolbar {
+  box-shadow: 0 12px 32px color-mix(in oklch, var(--color-ink) 28%, transparent);
+}
+
+.zoom-button,
+.icon-button {
+  display: grid;
+  min-height: 36px;
+  min-width: 36px;
+  place-items: center;
+  border-radius: 7px;
+  color: inherit;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.zoom-button:hover,
+.icon-button:hover {
+  background: color-mix(in oklch, currentColor 10%, transparent);
+}
+
+.zoom-button:active,
+.icon-button:active {
+  transform: translateY(1px);
+}
+
+.zoom-text-button {
+  min-height: 36px;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.zoom-text-button:hover {
+  background: color-mix(in oklch, currentColor 10%, transparent);
+}
+
+.zoom-readout {
+  min-width: 44px;
+  color: var(--color-on-image);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 .detail-row {
   border-bottom: 1px solid color-mix(in oklch, var(--color-line) 70%, transparent);
   padding-bottom: 14px;
@@ -186,6 +247,131 @@ button {
   padding: 3px;
   box-shadow: 0 1px 0 color-mix(in oklch, var(--color-ink) 4%, transparent);
   white-space: nowrap;
+}
+
+.settings-overlay {
+  background: color-mix(in oklch, var(--color-ink) 34%, transparent);
+}
+
+.settings-backdrop {
+  cursor: default;
+}
+
+.settings-panel {
+  box-shadow:
+    0 28px 90px color-mix(in oklch, var(--color-ink) 28%, transparent),
+    0 2px 8px color-mix(in oklch, var(--color-ink) 12%, transparent);
+}
+
+.settings-section + .settings-section {
+  margin-top: 30px;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 16px;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-line) 70%, transparent);
+  padding-bottom: 12px;
+}
+
+.settings-row dt {
+  color: var(--color-muted);
+}
+
+.settings-row dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.toggle-row {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.toggle-row input {
+  accent-color: var(--color-ink);
+}
+
+.update-message {
+  margin-top: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 12px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.update-message.available {
+  border-color: color-mix(in oklch, var(--color-ready) 45%, var(--color-line));
+  color: var(--color-ink);
+}
+
+.update-message.error {
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 40px;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 0.86rem;
+  font-weight: 750;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.primary-button {
+  background: var(--color-ink);
+  color: var(--color-on-image);
+}
+
+.secondary-button {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.changelog-view {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 14px;
+  color: var(--color-ink);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
 }
 
 .rating-star,
@@ -312,6 +498,13 @@ button {
     padding: 16px;
   }
 
+  .zoom-toolbar {
+    left: 12px;
+    max-width: calc(100% - 24px);
+    overflow-x: auto;
+    top: 12px;
+  }
+
   .review-image {
     max-height: 40vh;
   }
@@ -332,5 +525,15 @@ button {
   .thumb {
     height: 108px;
     width: 136px;
+  }
+
+  .settings-overlay {
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .settings-panel {
+    border-radius: 10px;
+    width: 100%;
   }
 }

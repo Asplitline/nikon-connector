@@ -11,8 +11,15 @@ describe("photo review keyboard shortcuts", () => {
     ["Home", { type: "edge", edge: "first" }],
     ["End", { type: "edge", edge: "last" }],
     ["5", { type: "rate", rating: 5 }],
-    ["0", { type: "rate", rating: 0 }],
     ["Backspace", { type: "rate", rating: 0 }],
+    ["Delete", { type: "rate", rating: 0 }],
+    ["+", { type: "zoom", action: "in" }],
+    ["=", { type: "zoom", action: "in" }],
+    ["-", { type: "zoom", action: "out" }],
+    ["f", { type: "zoom", action: "fit" }],
+    ["F", { type: "zoom", action: "fit" }],
+    ["z", { type: "zoom", action: "actual" }],
+    ["Z", { type: "zoom", action: "actual" }],
   ] as const)("maps %s to a photo review command", (key, command) => {
     expect(getPhotoReviewShortcut(key)).toEqual(command);
   });
@@ -21,6 +28,7 @@ describe("photo review keyboard shortcuts", () => {
     expect(getPhotoReviewShortcut("Tab")).toBeNull();
     expect(getPhotoReviewShortcut("Escape")).toBeNull();
     expect(getPhotoReviewShortcut("6")).toBeNull();
+    expect(getPhotoReviewShortcut("0")).toBeNull();
   });
 
   it("does not run shortcuts while users are editing text", () => {
