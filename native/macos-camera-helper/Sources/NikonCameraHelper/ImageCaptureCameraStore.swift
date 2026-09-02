@@ -44,7 +44,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
 
         let cacheURL = URL(fileURLWithPath: cacheDir, isDirectory: true)
         let files = cameraFiles(in: camera.contents ?? [])
-        let thumbnailPaths = cacheThumbnails(
+        let cachedImages = cacheImages(
             for: files,
             cameraId: cameraId,
             in: cacheURL,
@@ -53,7 +53,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         let photos = flatten(
             items: camera.contents ?? [],
             cameraId: cameraId,
-            thumbnailPaths: thumbnailPaths
+            cachedImages: cachedImages
         )
         camera.requestCloseSession()
         camera.delegate = nil
@@ -141,7 +141,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         items: [ICCameraItem],
         cameraId: String,
         storageId: String? = nil,
-        thumbnailPaths: [ObjectIdentifier: String]
+        cachedImages: [ObjectIdentifier: CachedImagePaths]
     ) -> [CameraPhoto] {
         items.flatMap { item in
             if let folder = item as? ICCameraFolder {
@@ -149,7 +149,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
                     items: folder.contents ?? [],
                     cameraId: cameraId,
                     storageId: storageId ?? folder.name,
-                    thumbnailPaths: thumbnailPaths
+                    cachedImages: cachedImages
                 )
             }
 
@@ -162,7 +162,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             let objectHandle = file.ptpObjectHandle == 0 ? nil : String(file.ptpObjectHandle)
             let identifier = objectHandle ?? fileName
             let capturedAt = file.creationDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
-            let thumbnailURL = thumbnailPaths[ObjectIdentifier(file)] ?? ""
+            let cachedImage = cachedImages[ObjectIdentifier(file)]
             return [CameraPhoto(
                 id: "\(cameraId):\(identifier)",
                 cameraId: cameraId,
@@ -173,8 +173,8 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
                 width: file.width > 0 ? Int(file.width) : 0,
                 height: file.height > 0 ? Int(file.height) : 0,
                 sizeMb: Double(file.fileSize) / 1024.0 / 1024.0,
-                previewUrl: thumbnailURL,
-                thumbnailUrl: thumbnailURL,
+                previewUrl: cachedImage?.previewPath ?? "",
+                thumbnailUrl: cachedImage?.thumbnailPath ?? "",
                 objectHandle: objectHandle,
                 storageId: storageId,
                 canDownloadOriginal: true,
@@ -198,12 +198,12 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         }
     }
 
-    private func cacheThumbnails(
+    private func cacheImages(
         for files: [ICCameraFile],
         cameraId: String,
         in cacheURL: URL,
         timeout: TimeInterval
-    ) -> [ObjectIdentifier: String] {
+    ) -> [ObjectIdentifier: CachedImagePaths] {
         guard (try? FileManager.default.createDirectory(
             at: cacheURL,
             withIntermediateDirectories: true
@@ -213,13 +213,14 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
 
         let group = DispatchGroup()
         let lock = NSLock()
-        var paths: [ObjectIdentifier: String] = [:]
+        var paths: [ObjectIdentifier: CachedImagePaths] = [:]
 
         for file in files {
             guard let fileName = file.name else { continue }
             let identifier = file.ptpObjectHandle == 0 ? fileName : String(file.ptpObjectHandle)
-            let thumbnailURL = cacheURL
-                .appendingPathComponent("\(safeFileComponent("\(cameraId)-\(identifier)"))-thumb.jpg")
+            let cacheKey = safeFileComponent("\(cameraId)-\(identifier)")
+            let thumbnailURL = cacheURL.appendingPathComponent("\(cacheKey)-thumb.jpg")
+            let previewURL = cacheURL.appendingPathComponent("\(cacheKey)-preview.jpg")
             let fileIdentifier = ObjectIdentifier(file)
 
             group.enter()
@@ -232,10 +233,33 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
                 do {
                     try data.write(to: thumbnailURL, options: .atomic)
                     lock.lock()
-                    paths[fileIdentifier] = thumbnailURL.path
+                    var cachedImage = paths[fileIdentifier] ?? CachedImagePaths()
+                    cachedImage.thumbnailPath = thumbnailURL.path
+                    paths[fileIdentifier] = cachedImage
                     lock.unlock()
                 } catch {
                     return
+                }
+            }
+
+            if canRequestPreview(for: fileName) {
+                group.enter()
+                file.requestThumbnailData(options: [
+                    .imageSourceThumbnailMaxPixelSize: NSNumber(value: 2400)
+                ]) { data, error in
+                    defer { group.leave() }
+                    guard let data, error == nil else { return }
+
+                    do {
+                        try data.write(to: previewURL, options: .atomic)
+                        lock.lock()
+                        var cachedImage = paths[fileIdentifier] ?? CachedImagePaths()
+                        cachedImage.previewPath = previewURL.path
+                        paths[fileIdentifier] = cachedImage
+                        lock.unlock()
+                    } catch {
+                        return
+                    }
                 }
             }
         }
@@ -250,7 +274,18 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             .components(separatedBy: allowed.inverted)
             .filter { !$0.isEmpty }
             .joined(separator: "-")
-        return component.isEmpty ? "photo" : component
+        let readablePrefix = component.isEmpty ? "photo" : String(component.prefix(48))
+        let encodedIdentifier = Data(identifier.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "=", with: "")
+        return "\(readablePrefix)-\(encodedIdentifier)"
+    }
+
+    private func canRequestPreview(for fileName: String) -> Bool {
+        let fileType = URL(fileURLWithPath: fileName).pathExtension.lowercased()
+        return ["jpg", "jpeg", "heif", "hif"].contains(fileType)
     }
 
     private func cameraIdentifier(for device: ICCameraDevice) -> String {
@@ -264,4 +299,9 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             value.localizedCaseInsensitiveContains("Nikon") || value.localizedCaseInsensitiveContains("Z6")
         }
     }
+}
+
+private struct CachedImagePaths {
+    var thumbnailPath = ""
+    var previewPath = ""
 }
