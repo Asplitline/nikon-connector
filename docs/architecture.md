@@ -47,9 +47,9 @@ PTP or ImageCaptureCore image objects map into `CameraPhoto` as follows:
 1. Use `nikon-camera-helper` for macOS camera discovery. The Rust provider
    resolves `NIKON_CAMERA_HELPER` first, then the development helper build at
    `native/macos-camera-helper/.build/debug/nikon-camera-helper`.
-2. Add ImageCaptureCore object listing and download previews or thumbnails into
-   the app cache, returning local asset
-   URLs to the frontend.
+2. Use ImageCaptureCore to enumerate supported image objects and return camera
+   metadata. Preview and thumbnail extraction into the app cache will return
+   local asset URLs in the next milestone.
 3. Add a Nikon SDK adapter under `src-tauri/src/nikon_sdk/`.
 4. Implement Z6III rating write-back behind `set_photo_rating`.
 5. Preserve the TypeScript `CameraPhoto` contract so UI code does not change.

@@ -14,8 +14,8 @@ do {
     switch try Command.parse(Array(CommandLine.arguments.dropFirst())) {
     case .listCameras:
         writeJSON(ImageCaptureCameraStore().listCameras(timeout: 3.0))
-    case .listPhotos:
-        writeJSON([CameraPhoto]())
+    case let .listPhotos(cameraId, cacheDir):
+        writeJSON(ImageCaptureCameraStore().listPhotos(cameraId: cameraId, cacheDir: cacheDir, timeout: 8.0))
     case .setRating:
         writeJSON(CommandError(error: "Nikon SDK unavailable."))
         exit(EXIT_FAILURE)
