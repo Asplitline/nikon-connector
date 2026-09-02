@@ -13,7 +13,7 @@ func writeJSON<T: Encodable>(_ value: T) {
 do {
     switch try Command.parse(Array(CommandLine.arguments.dropFirst())) {
     case .listCameras:
-        writeJSON([CameraDevice]())
+        writeJSON(ImageCaptureCameraStore().listCameras(timeout: 3.0))
     case .listPhotos:
         writeJSON([CameraPhoto]())
     case .setRating:

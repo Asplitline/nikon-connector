@@ -42,3 +42,13 @@ The UI needs explicit states for:
 The first provider shell must compile without linking ImageCaptureCore. The real
 bridge should be added behind a macOS-only module and tested on the physical
 Z6III before becoming the default provider.
+
+## Discovery Implementation
+
+The macOS helper now uses `ICDeviceBrowser` to discover `ICCameraDevice`
+instances for `list-cameras`, returning them with an `image_capture`
+connection. Nikon and Z6 devices are ordered ahead of other cameras.
+
+Hardware verification with a physical Z6III is deferred because no Z6III was
+connected during implementation. The helper's no-camera behavior is verified
+locally; connected-camera discovery and app sidebar verification remain pending.
