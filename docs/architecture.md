@@ -11,9 +11,10 @@ on the connected camera/card and apply official 0-5 star ratings.
 - React 19 + TypeScript + Vite frontend
 - Tailwind CSS for styling
 - Rust commands for native integration
-- macOS helper bridge for camera/card enumeration, with mock fallback when the
-  helper is unavailable or reports no cameras
-- Nikon Remote Module SDK 2.0.0 adapter shell for future rating write-back
+- macOS ImageCaptureCore helper bridge for camera/card enumeration and local
+  thumbnail and preview caching, with mock fallback when the helper is
+  unavailable or reports no cameras
+- Nikon Remote Module SDK 2.0.0 adapter shell for deferred rating write-back
 
 ## Milestone 1
 
@@ -42,15 +43,15 @@ PTP or ImageCaptureCore image objects map into `CameraPhoto` as follows:
 - `hasEmbeddedPreview`: whether a camera/object preview is available without RAW
   decoding.
 
-## Native Integration Plan
+## Native Integration Status
 
 1. Use `nikon-camera-helper` for macOS camera discovery. The Rust provider
    resolves `NIKON_CAMERA_HELPER` first, then the development helper build at
    `native/macos-camera-helper/.build/debug/nikon-camera-helper`.
-2. Use ImageCaptureCore to enumerate supported image objects and return camera
-   metadata. Preview and thumbnail extraction into the app cache will return
-   local asset URLs in the next milestone.
-3. Add a Nikon SDK adapter under `src-tauri/src/nikon_sdk/`.
+2. Use ImageCaptureCore to enumerate supported image objects, return camera
+   metadata, and cache thumbnails and previews locally for the frontend.
+3. Keep the Nikon SDK adapter under `src-tauri/src/nikon_sdk/` disabled until
+   its Z6III rating API is available and verified.
 4. Keep `set_photo_rating` on a clear unsupported path until the Nikon SDK
    exposes and verifies a camera-visible Z6III 0-5 star rating API.
 5. Preserve the TypeScript `CameraPhoto` contract so UI code does not change.
@@ -63,6 +64,11 @@ libraries are installed, so `rating_write_back_available()` returns `false`.
 When a user applies a rating, the frontend performs an optimistic update and the
 Tauri command returns the unsupported SDK error, causing the UI to roll back to
 the previous rating instead of claiming the value was saved to the camera.
+
+No Nikon Z6III USB device or Nikon SDK files are available in this local
+environment. Discovery, camera-card enumeration, thumbnail/preview caching,
+and any future SDK write-back must therefore be verified on hardware before a
+release can claim real-device confirmation.
 
 ## UX Direction
 

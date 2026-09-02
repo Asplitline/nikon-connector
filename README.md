@@ -27,13 +27,17 @@ A macOS desktop app for reviewing Nikon Z6III camera-card photos, applying
 
 ```bash
 bun install
-bun run dev
-bun run lint
 bun run tauri dev
 ```
 
 Use `bun run check` before shipping frontend changes. Keep automated tests
 focused on core behavior and let lint catch broad TypeScript/React issues.
+
+### Connecting a Nikon Z6III
+
+Connect the Z6III with a USB cable, power the camera on, and insert a memory
+card containing the photos to review. Accept any macOS prompts that allow the
+app to access the camera before opening the review workspace.
 
 ## Native Camera Helper
 
@@ -45,9 +49,10 @@ swift build --package-path native/macos-camera-helper
 swift run --package-path native/macos-camera-helper nikon-camera-helper list-cameras
 ```
 
-`list-cameras` uses ImageCaptureCore to enumerate connected cameras. Photo
-listing and rating write-back remain staged behind the app contracts while the
-Nikon SDK bridge is completed.
+`list-cameras` uses ImageCaptureCore to enumerate connected cameras. The helper
+also enumerates camera-card photos and caches thumbnails and previews locally
+for the review workspace. Physical-device verification still requires a
+connected Z6III.
 
 ## Releases
 
@@ -78,5 +83,6 @@ publishing rules.
 ## Nikon SDK
 
 Place the official Nikon Remote Module SDK 2.0.0 files for Z6III in
-`src-tauri/vendor/NikonSDK/`. Rating write-back is still guarded by the Rust
-rating boundary until the SDK adapter is implemented.
+`src-tauri/vendor/NikonSDK/`. Rating write-back remains disabled until the
+installed SDK's Z6III rating API is identified, linked, and verified on a real
+camera; this is not currently confirmed or enabled.

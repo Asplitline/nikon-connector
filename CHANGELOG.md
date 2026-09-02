@@ -8,6 +8,11 @@ This project follows SemVer and keeps release notes in Keep a Changelog style.
 
 ### Added
 
+- Real Nikon Z6III camera discovery.
+- Camera-card photo enumeration.
+- Local thumbnail and preview caching.
+- Official Nikon SDK rating write-back when supported by the installed SDK;
+  this is not currently confirmed or enabled.
 - Photo preview zoom controls with keyboard shortcuts for zoom in, zoom out,
   fit-to-window, and actual-size review.
 - Settings panel with software version, development log, update feed, and
