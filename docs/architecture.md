@@ -11,7 +11,8 @@ on the connected camera/card and apply official 0-5 star ratings.
 - React 19 + TypeScript + Vite frontend
 - Tailwind CSS for styling
 - Rust commands for native integration
-- Future macOS bridge to ImageCaptureCore for camera/card enumeration
+- macOS helper bridge for camera/card enumeration, with mock fallback when the
+  helper is unavailable or reports no cameras
 - Future Nikon Remote Module SDK 2.0.0 adapter for rating write-back
 
 ## Milestone 1
@@ -43,8 +44,11 @@ PTP or ImageCaptureCore image objects map into `CameraPhoto` as follows:
 
 ## Native Integration Plan
 
-1. Add an ImageCaptureCore bridge for USB camera discovery and object listing.
-2. Download previews or thumbnails into the app cache and return local asset
+1. Use `nikon-camera-helper` for macOS camera discovery. The Rust provider
+   resolves `NIKON_CAMERA_HELPER` first, then the development helper build at
+   `native/macos-camera-helper/.build/debug/nikon-camera-helper`.
+2. Add ImageCaptureCore object listing and download previews or thumbnails into
+   the app cache, returning local asset
    URLs to the frontend.
 3. Add a Nikon SDK adapter under `src-tauri/src/nikon_sdk/`.
 4. Implement Z6III rating write-back behind `set_photo_rating`.

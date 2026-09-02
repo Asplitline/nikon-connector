@@ -1,4 +1,7 @@
 #[cfg(target_os = "macos")]
+#[cfg(target_os = "macos")]
+mod helper_bridge;
+#[cfg(target_os = "macos")]
 mod macos_provider;
 mod mock_provider;
 pub mod types;
@@ -8,6 +11,12 @@ pub use types::{CameraDevice, CameraPhoto};
 pub fn list_cameras() -> Vec<CameraDevice> {
     #[cfg(target_os = "macos")]
     {
+        if let Ok(cameras) = helper_bridge::list_cameras() {
+            if !cameras.is_empty() {
+                return cameras;
+            }
+        }
+
         let cameras = macos_provider::list_cameras();
         if !cameras.is_empty() {
             return cameras;
