@@ -6,9 +6,10 @@ Place the Nikon Remote Module SDK package for Z6III under:
 src-tauri/vendor/NikonSDK/
 ```
 
-The repository does not currently contain any SDK files. The expected probe
-artifacts are `include/NikonSDK.h` and `lib/libNikonSDK.dylib` below that
-directory; the runtime capability check remains `false` until both exist.
+The repository does not currently contain any SDK files. Candidate artifacts to
+check after installation include `include/NikonSDK.h` and
+`lib/libNikonSDK.dylib` below that directory, but the runtime capability check
+remains `false` until the real SDK layout and rating API are confirmed.
 
 The production bridge should expose the same command surface already used by
 the frontend:

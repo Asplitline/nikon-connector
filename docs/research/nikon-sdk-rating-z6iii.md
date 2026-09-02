@@ -13,17 +13,18 @@ No header or API names were discovered, and support for writing camera-visible
 
 ## Capability probe
 
-`nikon_sdk::rating_write_back_available()` checks for both of these concrete
-paths:
+`nikon_sdk::rating_write_back_available()` remains hard-disabled until the real
+SDK layout and rating API are verified. The current code keeps a diagnostic
+artifact check for these candidate paths:
 
 ```text
 src-tauri/vendor/NikonSDK/include/NikonSDK.h
 src-tauri/vendor/NikonSDK/lib/libNikonSDK.dylib
 ```
 
-It returns `false` when either path is absent. This conservative result avoids
-claiming official write-back support based on an assumed SDK layout or an
-unverified API.
+Even if placeholder files appear at those paths, the public capability function
+still returns `false`. This conservative result avoids claiming official
+write-back support based on an assumed SDK layout or an unverified API.
 
 After the official SDK is installed, inspect headers and samples with:
 
