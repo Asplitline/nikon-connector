@@ -39,7 +39,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         camera.requestOpenSession()
 
         let deadline = Date().addingTimeInterval(timeout)
-        while !contentCatalogFinished && camera.contents?.isEmpty != false && Date() < deadline {
+        while !contentCatalogFinished && Date() < deadline {
             RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
         }
 
@@ -144,8 +144,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
 
             let objectHandle = file.ptpObjectHandle == 0 ? nil : String(file.ptpObjectHandle)
             let identifier = objectHandle ?? fileName
-            let capturedAt = file.creationDate.map { ISO8601DateFormatter().string(from: $0) }
-                ?? ISO8601DateFormatter().string(from: Date())
+            let capturedAt = file.creationDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
             return [CameraPhoto(
                 id: "\(cameraId):\(identifier)",
                 cameraId: cameraId,
