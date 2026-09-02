@@ -6,6 +6,20 @@ This project follows SemVer and keeps release notes in Keep a Changelog style.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-01
+
+### Changed
+
+- Release packaging now publishes a macOS DMG installer asset instead of a
+  source-style app archive.
+- GitHub Release notes are generated from the matching `CHANGELOG.md` version
+  section so each tag displays the latest changes and features.
+
+### Fixed
+
+- Narrowed photo review keyboard shortcuts before applying ratings so zoom
+  shortcuts do not break TypeScript release builds.
+
 ## [0.1.2] - 2026-09-01
 
 ### Added

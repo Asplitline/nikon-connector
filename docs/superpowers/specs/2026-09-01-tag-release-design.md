@@ -28,14 +28,15 @@ validated version tags.
 - `bun run release:tag` creates an annotated `v<version>` tag for the current
   synchronized version.
 - `bun run release:build` runs `release:check`, frontend checks, tests, and
-  `tauri build --bundles app` by default. Explicit bundle arguments such as
-  `-- --bundles dmg` are passed through for full desktop release machines.
-- `bun run release:package` builds the default `.app` bundle and archives it to
-  `dist/releases/Nikon-Connector-v<version>-macos-aarch64.zip`.
+  `tauri build --bundles dmg` by default. Explicit bundle arguments such as
+  `-- --bundles app` are passed through for local debugging.
+- `bun run release:package` builds the default DMG installer and copies it to
+  `dist/releases/Nikon-Connector-v<version>-macos-aarch64.dmg`.
 - `bun run release:push` pushes the current branch and annotated release tag to
   `origin`.
 - `bun run release:github` creates a GitHub Release from the pushed tag using
-  `gh release create` and uploads the packaged zip asset.
+  `gh release create`, uses that version's `CHANGELOG.md` section as release
+  notes, and uploads the packaged DMG installer asset.
 - `bun run release:publish` runs package, push, and GitHub release creation in
   order.
 

@@ -114,7 +114,7 @@ function App() {
         return;
       }
 
-      if (connectionState === "connected" && selectedPhoto) {
+      if (shortcut.type === "rate" && connectionState === "connected" && selectedPhoto) {
         event.preventDefault();
         void handleRatingChange(selectedPhoto, shortcut.rating);
       }

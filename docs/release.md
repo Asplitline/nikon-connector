@@ -57,27 +57,26 @@ bun run release:package
 ```
 
 This command validates release metadata, runs frontend checks, runs tests, and
-then executes `bun run tauri build --bundles app`. Tauri writes the macOS app
-bundle under `src-tauri/target/release/bundle/macos/`, then archives it as:
+then executes `bun run tauri build --bundles dmg`. Tauri writes the macOS DMG
+installer under `src-tauri/target/release/bundle/dmg/`, then copies it as:
 
 ```text
-dist/releases/Nikon-Connector-v<version>-macos-aarch64.zip
-```
-
-To produce a DMG on a full macOS desktop environment with `hdiutil` disk image
-support, pass the bundle target explicitly:
-
-```bash
-bun run release:build -- --bundles dmg
+dist/releases/Nikon-Connector-v<version>-macos-aarch64.dmg
 ```
 
 DMG creation mounts a temporary disk image. It can fail in restricted shells or
-CI runners that cannot create disk devices.
+CI runners that cannot create disk devices. To build only the app bundle during
+local debugging, pass the bundle target explicitly:
+
+```bash
+bun run release:build -- --bundles app
+```
 
 ## Publish To GitHub
 
 GitHub releases are created from the annotated version tag. The release notes
-come from that version's section in `CHANGELOG.md`, and the packaged zip is
+come from that version's section in `CHANGELOG.md`, so GitHub displays the
+latest changes and features recorded for the tag. The packaged DMG installer is
 uploaded as the release asset.
 
 ```bash

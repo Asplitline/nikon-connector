@@ -6,7 +6,7 @@ import { describe, expect, test, afterEach } from "vitest";
 import {
   buildGithubReleaseArgs,
   changelogNotesForVersion,
-  defaultReleaseArchivePath,
+  defaultReleaseInstallerPath,
   parseVersion,
   prepareChangelog,
   readProjectVersions,
@@ -64,14 +64,14 @@ describe("release version parsing", () => {
 });
 
 describe("Tauri build arguments", () => {
-  test("defaults to app bundling and allows explicit bundle overrides", () => {
-    expect(tauriBuildArgs([])).toEqual(["run", "tauri", "build", "--bundles", "app"]);
-    expect(tauriBuildArgs(["--bundles", "dmg"])).toEqual([
+  test("defaults to DMG installer bundling and allows explicit bundle overrides", () => {
+    expect(tauriBuildArgs([])).toEqual(["run", "tauri", "build", "--bundles", "dmg"]);
+    expect(tauriBuildArgs(["--bundles", "app"])).toEqual([
       "run",
       "tauri",
       "build",
       "--bundles",
-      "dmg",
+      "app",
     ]);
   });
 });
@@ -148,13 +148,13 @@ describe("GitHub release publishing", () => {
         tag: "v0.1.1",
         title: "Nikon Connector v0.1.1",
         notes: "### Added\n\n- Release tooling.",
-        assets: ["dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.zip"],
+        assets: ["dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.dmg"],
       }),
     ).toEqual([
       "release",
       "create",
       "v0.1.1",
-      "dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.zip",
+      "dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.dmg",
       "--title",
       "Nikon Connector v0.1.1",
       "--notes",
@@ -163,9 +163,9 @@ describe("GitHub release publishing", () => {
     ]);
   });
 
-  test("uses the conventional macOS archive path for GitHub assets", () => {
-    expect(defaultReleaseArchivePath("/repo", "0.1.1")).toBe(
-      "/repo/dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.zip",
+  test("uses the conventional macOS installer path for GitHub assets", () => {
+    expect(defaultReleaseInstallerPath("/repo", "0.1.1")).toBe(
+      "/repo/dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.dmg",
     );
   });
 });

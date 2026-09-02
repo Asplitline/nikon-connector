@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import process from "node:process";
@@ -52,15 +52,27 @@ export function tauriBuildArgs(argv = []) {
     return ["run", "tauri", "build", ...argv];
   }
 
-  return ["run", "tauri", "build", "--bundles", "app", ...argv];
+  return ["run", "tauri", "build", "--bundles", "dmg", ...argv];
 }
 
-export function defaultReleaseArchivePath(root, version) {
+export function defaultReleaseInstallerPath(root, version) {
   return join(
     root,
     "dist",
     "releases",
-    `Nikon-Connector-v${parseVersion(version).value}-macos-aarch64.zip`,
+    `Nikon-Connector-v${parseVersion(version).value}-macos-aarch64.dmg`,
+  );
+}
+
+export function tauriDmgPath(root, version) {
+  return join(
+    root,
+    "src-tauri",
+    "target",
+    "release",
+    "bundle",
+    "dmg",
+    `Nikon Connector_${parseVersion(version).value}_aarch64.dmg`,
   );
 }
 
@@ -343,26 +355,16 @@ async function packageRelease(root = process.cwd(), argv = []) {
   await run("bun", ["run", "test"], { cwd: root });
   await run("bun", tauriBuildArgs(argv), { cwd: root });
 
-  const archivePath = defaultReleaseArchivePath(root, version);
+  const installerPath = defaultReleaseInstallerPath(root, version);
   await mkdir(join(root, "dist", "releases"), { recursive: true });
-  await run(
-    "ditto",
-    [
-      "-c",
-      "-k",
-      "--keepParent",
-      join(root, "src-tauri", "target", "release", "bundle", "macos", "Nikon Connector.app"),
-      archivePath,
-    ],
-    { cwd: root },
-  );
-  return archivePath;
+  await copyFile(tauriDmgPath(root, version), installerPath);
+  return installerPath;
 }
 
 async function publishGithubRelease(root = process.cwd(), assets = []) {
   const { version, tag } = await validateReleaseState(root);
   const notes = await changelogNotesForVersion(root, version);
-  const releaseAssets = assets.length > 0 ? assets : [defaultReleaseArchivePath(root, version)];
+  const releaseAssets = assets.length > 0 ? assets : [defaultReleaseInstallerPath(root, version)];
 
   await run(
     "gh",
@@ -414,8 +416,8 @@ async function cli(argv) {
       break;
     }
     case "package": {
-      const archivePath = await packageRelease(root, argv.slice(1));
-      console.log(`Packaged release artifact: ${archivePath}`);
+      const installerPath = await packageRelease(root, argv.slice(1));
+      console.log(`Packaged release installer: ${installerPath}`);
       break;
     }
     case "push": {
@@ -429,9 +431,9 @@ async function cli(argv) {
       break;
     }
     case "publish": {
-      const archivePath = await packageRelease(root);
+      const installerPath = await packageRelease(root);
       await pushReleaseTag(root);
-      const { tag } = await publishGithubRelease(root, [archivePath]);
+      const { tag } = await publishGithubRelease(root, [installerPath]);
       console.log(`Published ${tag} to GitHub.`);
       break;
     }
