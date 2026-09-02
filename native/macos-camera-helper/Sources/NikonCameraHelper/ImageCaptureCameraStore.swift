@@ -26,7 +26,6 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
     }
 
     func listPhotos(cameraId: String, cacheDir: String, timeout: TimeInterval) -> [CameraPhoto] {
-        _ = cacheDir
         startBrowser(timeout: timeout)
         defer { stopBrowser() }
 
@@ -43,7 +42,19 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
         }
 
-        let photos = flatten(items: camera.contents ?? [], cameraId: cameraId)
+        let cacheURL = URL(fileURLWithPath: cacheDir, isDirectory: true)
+        let files = cameraFiles(in: camera.contents ?? [])
+        let thumbnailPaths = cacheThumbnails(
+            for: files,
+            cameraId: cameraId,
+            in: cacheURL,
+            timeout: timeout
+        )
+        let photos = flatten(
+            items: camera.contents ?? [],
+            cameraId: cameraId,
+            thumbnailPaths: thumbnailPaths
+        )
         camera.requestCloseSession()
         camera.delegate = nil
         return photos
@@ -126,13 +137,19 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         browser.delegate = nil
     }
 
-    private func flatten(items: [ICCameraItem], cameraId: String, storageId: String? = nil) -> [CameraPhoto] {
+    private func flatten(
+        items: [ICCameraItem],
+        cameraId: String,
+        storageId: String? = nil,
+        thumbnailPaths: [ObjectIdentifier: String]
+    ) -> [CameraPhoto] {
         items.flatMap { item in
             if let folder = item as? ICCameraFolder {
                 return flatten(
                     items: folder.contents ?? [],
                     cameraId: cameraId,
-                    storageId: storageId ?? folder.name
+                    storageId: storageId ?? folder.name,
+                    thumbnailPaths: thumbnailPaths
                 )
             }
 
@@ -145,6 +162,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             let objectHandle = file.ptpObjectHandle == 0 ? nil : String(file.ptpObjectHandle)
             let identifier = objectHandle ?? fileName
             let capturedAt = file.creationDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
+            let thumbnailURL = thumbnailPaths[ObjectIdentifier(file)] ?? ""
             return [CameraPhoto(
                 id: "\(cameraId):\(identifier)",
                 cameraId: cameraId,
@@ -155,14 +173,84 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
                 width: file.width > 0 ? Int(file.width) : 0,
                 height: file.height > 0 ? Int(file.height) : 0,
                 sizeMb: Double(file.fileSize) / 1024.0 / 1024.0,
-                previewUrl: "",
-                thumbnailUrl: "",
+                previewUrl: thumbnailURL,
+                thumbnailUrl: thumbnailURL,
                 objectHandle: objectHandle,
                 storageId: storageId,
                 canDownloadOriginal: true,
                 hasEmbeddedPreview: false
             )]
         }
+    }
+
+    private func cameraFiles(in items: [ICCameraItem]) -> [ICCameraFile] {
+        items.flatMap { item in
+            if let folder = item as? ICCameraFolder {
+                return cameraFiles(in: folder.contents ?? [])
+            }
+
+            guard let file = item as? ICCameraFile,
+                  let fileName = file.name,
+                  supportedExtensions.contains(URL(fileURLWithPath: fileName).pathExtension.lowercased()) else {
+                return []
+            }
+            return [file]
+        }
+    }
+
+    private func cacheThumbnails(
+        for files: [ICCameraFile],
+        cameraId: String,
+        in cacheURL: URL,
+        timeout: TimeInterval
+    ) -> [ObjectIdentifier: String] {
+        guard (try? FileManager.default.createDirectory(
+            at: cacheURL,
+            withIntermediateDirectories: true
+        )) != nil else {
+            return [:]
+        }
+
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var paths: [ObjectIdentifier: String] = [:]
+
+        for file in files {
+            guard let fileName = file.name else { continue }
+            let identifier = file.ptpObjectHandle == 0 ? fileName : String(file.ptpObjectHandle)
+            let thumbnailURL = cacheURL
+                .appendingPathComponent("\(safeFileComponent("\(cameraId)-\(identifier)"))-thumb.jpg")
+            let fileIdentifier = ObjectIdentifier(file)
+
+            group.enter()
+            file.requestThumbnailData(options: [
+                .imageSourceThumbnailMaxPixelSize: NSNumber(value: 512)
+            ]) { data, error in
+                defer { group.leave() }
+                guard let data, error == nil else { return }
+
+                do {
+                    try data.write(to: thumbnailURL, options: .atomic)
+                    lock.lock()
+                    paths[fileIdentifier] = thumbnailURL.path
+                    lock.unlock()
+                } catch {
+                    return
+                }
+            }
+        }
+
+        _ = group.wait(timeout: .now() + timeout)
+        return paths
+    }
+
+    private func safeFileComponent(_ identifier: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let component = identifier
+            .components(separatedBy: allowed.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+        return component.isEmpty ? "photo" : component
     }
 
     private func cameraIdentifier(for device: ICCameraDevice) -> String {

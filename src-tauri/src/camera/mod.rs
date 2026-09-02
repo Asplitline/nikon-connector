@@ -1,5 +1,6 @@
 #[cfg(target_os = "macos")]
 mod helper_bridge;
+pub mod cache;
 mod mock_provider;
 pub mod types;
 
@@ -19,13 +20,12 @@ pub fn list_cameras() -> Vec<CameraDevice> {
     mock_provider::list_cameras()
 }
 
-pub fn list_photos(camera_id: &str) -> Vec<CameraPhoto> {
+pub fn list_photos(camera_id: &str, cache_dir: &std::path::Path) -> Vec<CameraPhoto> {
     #[cfg(target_os = "macos")]
     {
-        let cache_dir = std::env::temp_dir().join("nikon-connector-photo-cache");
         if let Some(photos) = photos_from_helper_result(
             camera_id,
-            helper_bridge::list_photos(camera_id, &cache_dir),
+            helper_bridge::list_photos(camera_id, cache_dir),
         ) {
             return photos;
         }

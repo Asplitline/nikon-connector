@@ -20,8 +20,9 @@ fn list_cameras() -> Vec<CameraDevice> {
 }
 
 #[tauri::command]
-fn list_photos(camera_id: &str) -> Vec<CameraPhoto> {
-    camera::list_photos(camera_id)
+fn list_photos(app: tauri::AppHandle, camera_id: &str) -> Result<Vec<CameraPhoto>, String> {
+    let cache_dir = camera::cache::photo_cache_dir(&app)?;
+    Ok(camera::list_photos(camera_id, &cache_dir))
 }
 
 #[tauri::command]

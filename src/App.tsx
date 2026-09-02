@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   createPhotoCatalog,
   getSelectedPhoto,
@@ -41,6 +42,12 @@ type UpdateStatus =
   | { state: "available"; message: string; update: AvailableUpdate }
   | { state: "installing"; message: string }
   | { state: "error"; message: string };
+
+function imageSource(url: string) {
+  return !url || /^(https?:|asset:|data:|blob:)/i.test(url)
+    ? url
+    : convertFileSrc(url);
+}
 
 function App() {
   const [connectionState, setConnectionState] =
@@ -386,19 +393,25 @@ function App() {
                       100%
                     </button>
                   </div>
-                  <img
-                    alt={selectedPhoto.fileName}
-                    className={[
-                      "review-image rounded-md object-contain",
-                      zoom.mode === "fit" ? "max-h-full max-w-full" : "scaled",
-                    ].join(" ")}
-                    src={selectedPhoto.previewUrl}
-                    style={
-                      zoom.mode === "scaled"
-                        ? { transform: `scale(${zoom.scale})` }
-                        : undefined
-                    }
-                  />
+                  {selectedPhoto.previewUrl || selectedPhoto.thumbnailUrl ? (
+                    <img
+                      alt={selectedPhoto.fileName}
+                      className={[
+                        "review-image rounded-md object-contain",
+                        zoom.mode === "fit" ? "max-h-full max-w-full" : "scaled",
+                      ].join(" ")}
+                      src={imageSource(selectedPhoto.previewUrl || selectedPhoto.thumbnailUrl)}
+                      style={
+                        zoom.mode === "scaled"
+                          ? { transform: `scale(${zoom.scale})` }
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <div className="text-center text-[var(--color-stage-muted)]">
+                      Preview unavailable for this camera item.
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="max-w-sm text-center text-[var(--color-stage-muted)]">
@@ -443,11 +456,13 @@ function App() {
                     title={photo.fileName}
                     type="button"
                   >
-                    <img
-                      alt=""
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
-                      src={photo.thumbnailUrl}
-                    />
+                    {photo.thumbnailUrl ? (
+                      <img
+                        alt=""
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
+                        src={imageSource(photo.thumbnailUrl)}
+                      />
+                    ) : null}
                     <span className="thumb-caption absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 px-3 pb-2.5 pt-9 text-xs font-medium text-[var(--color-on-image)]">
                       <span className="min-w-0 truncate">{photo.fileName}</span>
                       <span className="shrink-0">{photo.rating ? `${photo.rating}★` : "Unrated"}</span>
