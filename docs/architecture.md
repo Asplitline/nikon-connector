@@ -13,7 +13,7 @@ on the connected camera/card and apply official 0-5 star ratings.
 - Rust commands for native integration
 - macOS helper bridge for camera/card enumeration, with mock fallback when the
   helper is unavailable or reports no cameras
-- Future Nikon Remote Module SDK 2.0.0 adapter for rating write-back
+- Nikon Remote Module SDK 2.0.0 adapter shell for future rating write-back
 
 ## Milestone 1
 
@@ -51,8 +51,18 @@ PTP or ImageCaptureCore image objects map into `CameraPhoto` as follows:
    metadata. Preview and thumbnail extraction into the app cache will return
    local asset URLs in the next milestone.
 3. Add a Nikon SDK adapter under `src-tauri/src/nikon_sdk/`.
-4. Implement Z6III rating write-back behind `set_photo_rating`.
+4. Keep `set_photo_rating` on a clear unsupported path until the Nikon SDK
+   exposes and verifies a camera-visible Z6III 0-5 star rating API.
 5. Preserve the TypeScript `CameraPhoto` contract so UI code does not change.
+
+## Rating Write-Back State
+
+Official camera-visible rating write-back is not enabled yet. The SDK directory
+is present as `src-tauri/vendor/NikonSDK/`, but no official SDK headers or
+libraries are installed, so `rating_write_back_available()` returns `false`.
+When a user applies a rating, the frontend performs an optimistic update and the
+Tauri command returns the unsupported SDK error, causing the UI to roll back to
+the previous rating instead of claiming the value was saved to the camera.
 
 ## UX Direction
 

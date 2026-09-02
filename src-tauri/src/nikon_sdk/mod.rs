@@ -14,7 +14,11 @@ fn expected_sdk_artifacts_present(sdk_dir: impl AsRef<Path>) -> bool {
     sdk_dir.join("include/NikonSDK.h").is_file() && sdk_dir.join("lib/libNikonSDK.dylib").is_file()
 }
 
-pub fn set_rating(_photo_id: &str, _rating: u8) -> Result<(), String> {
+pub fn set_rating(_photo_id: &str, rating: u8) -> Result<(), String> {
+    if rating > 5 {
+        return Err("Rating must be between 0 and 5.".into());
+    }
+
     Err("Nikon SDK rating write-back is not connected yet.".into())
 }
 
