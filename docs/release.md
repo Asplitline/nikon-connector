@@ -79,6 +79,16 @@ come from that version's section in `CHANGELOG.md`, so GitHub displays the
 latest changes and features recorded for the tag. The packaged DMG installer is
 uploaded as the release asset.
 
+The shortest release command is:
+
+```bash
+bun run release:all -- 0.2.0
+```
+
+It prepares the version and changelog, packages the DMG, commits the release,
+creates the annotated tag, pushes the current branch and tag, then creates the
+GitHub Release.
+
 ```bash
 bun run release:push
 bun run release:github

@@ -5,6 +5,7 @@ import { describe, expect, test, afterEach } from "vitest";
 
 import {
   buildGithubReleaseArgs,
+  buildReleaseCommitArgs,
   changelogNotesForVersion,
   defaultReleaseInstallerPath,
   defaultUpdaterManifestPath,
@@ -172,5 +173,15 @@ describe("GitHub release publishing", () => {
 
   test("uses the conventional updater manifest path for GitHub assets", () => {
     expect(defaultUpdaterManifestPath("/repo")).toBe("/repo/dist/releases/latest.json");
+  });
+});
+
+describe("one-command release", () => {
+  test("builds a conventional release commit message", () => {
+    expect(buildReleaseCommitArgs("0.2.0")).toEqual([
+      "commit",
+      "-m",
+      "release: v0.2.0",
+    ]);
   });
 });

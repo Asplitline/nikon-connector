@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "release:build": "node scripts/release.mjs build",
+    "release:all": "node scripts/release.mjs all",
     "release:check": "node scripts/release.mjs check",
     "release:github": "node scripts/release.mjs github",
     "release:package": "node scripts/release.mjs package",

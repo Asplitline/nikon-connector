@@ -99,6 +99,10 @@ export function buildGithubReleaseArgs({ tag, title, notes, assets = [] }) {
   ];
 }
 
+export function buildReleaseCommitArgs(version) {
+  return ["commit", "-m", `release: ${tagForVersion(version)}`];
+}
+
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
 }
@@ -357,6 +361,11 @@ async function pushReleaseTag(root = process.cwd()) {
   return { branch, tag };
 }
 
+async function commitRelease(root, version) {
+  await run("git", ["add", "."], { cwd: root });
+  await run("git", buildReleaseCommitArgs(version), { cwd: root });
+}
+
 async function packageRelease(root = process.cwd(), argv = []) {
   const { version } = await validateReleaseState(root);
   await run("bun", ["run", "check"], { cwd: root });
@@ -450,9 +459,25 @@ async function cli(argv) {
       console.log(`Published ${tag} to GitHub.`);
       break;
     }
+    case "all": {
+      if (!maybeVersion) {
+        throw new Error("Usage: bun run release:all -- <version>");
+      }
+      const version = parseVersion(maybeVersion).value;
+      await setProjectVersion(root, version);
+      await prepareChangelog(root, version);
+      await validateReleaseState(root);
+      const assets = await packageRelease(root);
+      await commitRelease(root, version);
+      const { tag } = await createAnnotatedTag(root);
+      await pushReleaseTag(root);
+      await publishGithubRelease(root, assets);
+      console.log(`Prepared, committed, tagged, packaged, pushed, and published ${tag}.`);
+      break;
+    }
     default:
       throw new Error(
-        "Usage: node scripts/release.mjs <check|prepare|tag|build|package|push|github|publish> [version] [--tag vX.Y.Z]",
+        "Usage: node scripts/release.mjs <check|prepare|tag|build|package|push|github|publish|all> [version] [--tag vX.Y.Z]",
       );
   }
 }
