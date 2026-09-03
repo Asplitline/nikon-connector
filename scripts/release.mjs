@@ -47,6 +47,31 @@ export function tagForVersion(version) {
   return `v${parseVersion(version).value}`;
 }
 
+export function nextVersion(currentVersion, bump = "patch") {
+  const current = parseVersion(currentVersion);
+  const value = String(bump ?? "patch").trim().toLowerCase();
+
+  if (VERSION_RE.test(value)) {
+    return parseVersion(value).value;
+  }
+
+  switch (value || "patch") {
+    case "x":
+    case "major":
+      return `${current.major + 1}.0.0`;
+    case "y":
+    case "minor":
+      return `${current.major}.${current.minor + 1}.0`;
+    case "z":
+    case "patch":
+      return `${current.major}.${current.minor}.${current.patch + 1}`;
+    default:
+      throw new Error(
+        `Expected version bump x, y, z, major, minor, patch, or MAJOR.MINOR.PATCH, got "${bump}".`,
+      );
+  }
+}
+
 export function tauriBuildArgs(argv = []) {
   if (argv.includes("--bundles") || argv.includes("-b") || argv.includes("--no-bundle")) {
     return ["run", "tauri", "build", ...argv];
@@ -162,6 +187,23 @@ export async function readProjectVersions(root = process.cwd()) {
     "src-tauri/Cargo.toml": readCargoPackageVersion(cargoToml),
     "src-tauri/Cargo.lock": readCargoLockPackageVersion(cargoLock),
   };
+}
+
+async function readCurrentProjectVersion(root) {
+  const versions = await readProjectVersions(root);
+  const entries = Object.entries(versions);
+  const uniqueVersions = new Set(entries.map(([, version]) => version));
+
+  if (uniqueVersions.size !== 1) {
+    const details = entries.map(([file, version]) => `${file}: ${version}`).join(", ");
+    throw new Error(`Version mismatch across release metadata: ${details}`);
+  }
+
+  return entries[0][1];
+}
+
+async function resolveReleaseVersion(root, versionOrBump) {
+  return nextVersion(await readCurrentProjectVersion(root), versionOrBump);
 }
 
 export async function setProjectVersion(root, inputVersion) {
@@ -415,10 +457,7 @@ async function cli(argv) {
       break;
     }
     case "prepare": {
-      if (!maybeVersion) {
-        throw new Error("Usage: bun run release:prepare -- <version>");
-      }
-      const version = parseVersion(maybeVersion).value;
+      const version = await resolveReleaseVersion(root, maybeVersion);
       await setProjectVersion(root, version);
       await prepareChangelog(root, version);
       const state = await validateReleaseState(root);
@@ -460,10 +499,7 @@ async function cli(argv) {
       break;
     }
     case "all": {
-      if (!maybeVersion) {
-        throw new Error("Usage: bun run release:all -- <version>");
-      }
-      const version = parseVersion(maybeVersion).value;
+      const version = await resolveReleaseVersion(root, maybeVersion);
       await setProjectVersion(root, version);
       await prepareChangelog(root, version);
       await validateReleaseState(root);

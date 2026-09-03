@@ -9,6 +9,7 @@ import {
   changelogNotesForVersion,
   defaultReleaseInstallerPath,
   defaultUpdaterManifestPath,
+  nextVersion,
   parseVersion,
   prepareChangelog,
   readProjectVersions,
@@ -62,6 +63,21 @@ describe("release version parsing", () => {
 
   test("formats the annotated release tag from a version", () => {
     expect(tagForVersion("1.2.3")).toBe("v1.2.3");
+  });
+
+  test("increments patch by default and supports major/minor aliases", () => {
+    expect(nextVersion("1.2.3")).toBe("1.2.4");
+    expect(nextVersion("1.2.3", "patch")).toBe("1.2.4");
+    expect(nextVersion("1.2.3", "z")).toBe("1.2.4");
+    expect(nextVersion("1.2.3", "minor")).toBe("1.3.0");
+    expect(nextVersion("1.2.3", "y")).toBe("1.3.0");
+    expect(nextVersion("1.2.3", "major")).toBe("2.0.0");
+    expect(nextVersion("1.2.3", "x")).toBe("2.0.0");
+  });
+
+  test("accepts explicit SemVer versions when resolving the next release", () => {
+    expect(nextVersion("1.2.3", "2.1.0")).toBe("2.1.0");
+    expect(() => nextVersion("1.2.3", "beta")).toThrow(/version bump/);
   });
 });
 

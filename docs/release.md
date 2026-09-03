@@ -82,12 +82,27 @@ uploaded as the release asset.
 The shortest release command is:
 
 ```bash
-bun run release:all -- 0.2.0
+bun run release:all
 ```
 
-It prepares the version and changelog, packages the DMG, commits the release,
-creates the annotated tag, pushes the current branch and tag, then creates the
-GitHub Release.
+By default this increments the `z` patch version, for example `0.1.3` becomes
+`0.1.4`. It prepares the version and changelog, packages the DMG, commits the
+release, creates the annotated tag, pushes the current branch and tag, then
+creates the GitHub Release.
+
+To control the version segment, pass `x`, `y`, or `z`:
+
+```bash
+bun run release:all -- x
+bun run release:all -- y
+bun run release:all -- z
+```
+
+You can still pass an exact version when needed:
+
+```bash
+bun run release:all -- 0.2.0
+```
 
 ```bash
 bun run release:push
