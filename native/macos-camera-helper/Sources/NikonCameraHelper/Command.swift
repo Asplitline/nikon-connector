@@ -1,6 +1,7 @@
 enum Command {
     case listCameras
     case listPhotos(cameraId: String, cacheDir: String)
+    case exportPhotos(cameraId: String, destinationDir: String, photoIds: [String])
     case setRating(photoId: String, rating: Int)
 
     static func parse(_ args: [String]) throws -> Command {
@@ -12,6 +13,12 @@ enum Command {
             return .listPhotos(
                 cameraId: try value(after: "--camera-id", in: args),
                 cacheDir: try value(after: "--cache-dir", in: args)
+            )
+        case "export-photos":
+            return .exportPhotos(
+                cameraId: try value(after: "--camera-id", in: args),
+                destinationDir: try value(after: "--destination-dir", in: args),
+                photoIds: values(after: "--photo-id", in: args)
             )
         case "set-rating":
             let photoId = try value(after: "--photo-id", in: args)
@@ -30,6 +37,12 @@ enum Command {
             throw HelperError.message("Missing \(flag).")
         }
         return args[index + 1]
+    }
+
+    private static func values(after flag: String, in args: [String]) -> [String] {
+        args.indices.compactMap { index in
+            args[index] == flag && args.indices.contains(index + 1) ? args[index + 1] : nil
+        }
     }
 }
 

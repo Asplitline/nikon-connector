@@ -4,7 +4,7 @@ use std::{
     process::Command,
 };
 
-use super::types::{CameraDevice, CameraPhoto};
+use super::types::{CameraDevice, CameraPhoto, ExportPhotosSummary};
 
 pub fn list_cameras() -> Result<Vec<CameraDevice>, String> {
     run_helper(&["list-cameras"])
@@ -23,6 +23,30 @@ pub fn list_photos(camera_id: &str, cache_dir: &Path) -> Result<Vec<CameraPhoto>
         "--cache-dir",
         cache_dir,
     ])
+}
+
+pub fn export_photos(
+    camera_id: &str,
+    photo_ids: &[String],
+    destination_dir: &Path,
+) -> Result<ExportPhotosSummary, String> {
+    let destination_dir = destination_dir
+        .to_str()
+        .ok_or_else(|| "Export destination path is not valid UTF-8.".to_string())?;
+    let mut args = vec![
+        "export-photos",
+        "--camera-id",
+        camera_id,
+        "--destination-dir",
+        destination_dir,
+    ];
+
+    for photo_id in photo_ids {
+        args.push("--photo-id");
+        args.push(photo_id);
+    }
+
+    run_helper(&args)
 }
 
 fn helper_path() -> Result<PathBuf, String> {

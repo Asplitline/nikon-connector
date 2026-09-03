@@ -1,11 +1,13 @@
 import Foundation
 import ImageCaptureCore
 
-final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCameraDeviceDelegate {
+final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCameraDeviceDelegate, ICCameraDeviceDownloadDelegate {
     private let browser = ICDeviceBrowser()
     private var cameraDevices: [ICCameraDevice] = []
     private var initialScanFinished = false
     private var contentCatalogFinished = false
+    private var downloadFinished = false
+    private var downloadError: Error?
 
     func listCameras(timeout: TimeInterval) -> [CameraDevice] {
         startBrowser(timeout: timeout)
@@ -60,6 +62,79 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         return photos
     }
 
+    func exportPhotos(
+        cameraId: String,
+        destinationDir: String,
+        photoIds: [String],
+        timeout: TimeInterval
+    ) -> ExportPhotosSummary {
+        guard !photoIds.isEmpty else {
+            return ExportPhotosSummary(copied: 0, skipped: 0, failed: 0)
+        }
+
+        startBrowser(timeout: timeout)
+        defer { stopBrowser() }
+
+        guard let camera = cameraDevices.first(where: { cameraIdentifier(for: $0) == cameraId }) else {
+            return ExportPhotosSummary(copied: 0, skipped: 0, failed: photoIds.count)
+        }
+
+        contentCatalogFinished = false
+        camera.delegate = self
+        camera.requestOpenSession()
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while !contentCatalogFinished && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
+        }
+
+        let destinationURL = URL(fileURLWithPath: destinationDir, isDirectory: true)
+        guard (try? FileManager.default.createDirectory(
+            at: destinationURL,
+            withIntermediateDirectories: true
+        )) != nil else {
+            camera.requestCloseSession()
+            camera.delegate = nil
+            return ExportPhotosSummary(copied: 0, skipped: 0, failed: photoIds.count)
+        }
+
+        let requestedIds = Set(photoIds)
+        let filesById = Dictionary(
+            uniqueKeysWithValues: cameraFiles(in: camera.contents ?? []).map { file in
+                (photoIdentifier(for: file, cameraId: cameraId), file)
+            }
+        )
+        var copied = 0
+        var skipped = 0
+        var failed = 0
+
+        for photoId in photoIds {
+            guard let file = filesById[photoId], let fileName = file.name else {
+                failed += 1
+                continue
+            }
+
+            guard requestedIds.contains(photoId) else {
+                continue
+            }
+
+            if FileManager.default.fileExists(atPath: destinationURL.appendingPathComponent(fileName).path) {
+                skipped += 1
+                continue
+            }
+
+            if download(file: file, from: camera, to: destinationURL, fileName: fileName, timeout: timeout) {
+                copied += 1
+            } else {
+                failed += 1
+            }
+        }
+
+        camera.requestCloseSession()
+        camera.delegate = nil
+        return ExportPhotosSummary(copied: copied, skipped: skipped, failed: failed)
+    }
+
     func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
         if let camera = device as? ICCameraDevice {
             cameraDevices.append(camera)
@@ -102,6 +177,16 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
     func cameraDeviceDidChangeCapability(_ camera: ICCameraDevice) {}
 
     func cameraDevice(_ camera: ICCameraDevice, didReceivePTPEvent eventData: Data) {}
+
+    @objc func didDownloadFile(
+        _ file: ICCameraFile,
+        error: Error?,
+        options: [String: Any],
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        downloadError = error
+        downloadFinished = true
+    }
 
     func cameraDeviceDidRemoveAccessRestriction(_ device: ICDevice) {}
 
@@ -160,11 +245,10 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             }
 
             let objectHandle = file.ptpObjectHandle == 0 ? nil : String(file.ptpObjectHandle)
-            let identifier = objectHandle ?? fileName
             let capturedAt = file.creationDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
             let cachedImage = cachedImages[ObjectIdentifier(file)]
             return [CameraPhoto(
-                id: "\(cameraId):\(identifier)",
+                id: photoIdentifier(for: file, cameraId: cameraId),
                 cameraId: cameraId,
                 fileName: fileName,
                 capturedAt: capturedAt,
@@ -286,6 +370,40 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
     private func canRequestPreview(for fileName: String) -> Bool {
         let fileType = URL(fileURLWithPath: fileName).pathExtension.lowercased()
         return ["jpg", "jpeg", "heif", "hif"].contains(fileType)
+    }
+
+    private func download(
+        file: ICCameraFile,
+        from camera: ICCameraDevice,
+        to destinationURL: URL,
+        fileName: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        downloadFinished = false
+        downloadError = nil
+        camera.requestDownloadFile(
+            file,
+            options: [
+                ICDownloadOption.downloadsDirectoryURL: destinationURL,
+                ICDownloadOption.saveAsFilename: fileName
+            ],
+            downloadDelegate: self,
+            didDownloadSelector: #selector(didDownloadFile(_:error:options:contextInfo:)),
+            contextInfo: nil
+        )
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while !downloadFinished && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
+        }
+
+        return downloadFinished && downloadError == nil
+    }
+
+    private func photoIdentifier(for file: ICCameraFile, cameraId: String) -> String {
+        let objectHandle = file.ptpObjectHandle == 0 ? nil : String(file.ptpObjectHandle)
+        let identifier = objectHandle ?? file.name ?? "photo"
+        return "\(cameraId):\(identifier)"
     }
 
     private func cameraIdentifier(for device: ICCameraDevice) -> String {

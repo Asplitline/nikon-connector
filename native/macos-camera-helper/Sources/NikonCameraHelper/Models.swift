@@ -28,3 +28,9 @@ struct CameraPhoto: Codable {
 struct CommandError: Codable {
     let error: String
 }
+
+struct ExportPhotosSummary: Codable {
+    let copied: Int
+    let skipped: Int
+    let failed: Int
+}

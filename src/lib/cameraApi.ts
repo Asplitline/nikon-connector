@@ -3,6 +3,18 @@ import type { CameraDevice, CameraPhoto, Rating } from "../features/photos/types
 
 const canUseTauri = () => "__TAURI_INTERNALS__" in window;
 
+export interface ExportPhotosRequest {
+  cameraId: string;
+  destinationDir: string;
+  photoIds: string[];
+}
+
+export interface ExportPhotosSummary {
+  copied: number;
+  failed: number;
+  skipped: number;
+}
+
 export async function listCameras(): Promise<CameraDevice[]> {
   if (!canUseTauri()) {
     return mockCameras;
@@ -33,6 +45,31 @@ export async function setPhotoRating(
   }
 
   return invoke<CameraPhoto>("set_photo_rating", { photoId, rating });
+}
+
+export async function exportPhotos(
+  request: ExportPhotosRequest,
+): Promise<ExportPhotosSummary> {
+  if (!canUseTauri()) {
+    const available = new Set(
+      mockPhotos
+        .filter((photo) => photo.cameraId === request.cameraId)
+        .map((photo) => photo.id),
+    );
+    const copied = request.photoIds.filter((photoId) => available.has(photoId)).length;
+
+    return {
+      copied,
+      failed: request.photoIds.length - copied,
+      skipped: 0,
+    };
+  }
+
+  return invoke<ExportPhotosSummary>("export_photos", {
+    cameraId: request.cameraId,
+    destinationDir: request.destinationDir,
+    photoIds: request.photoIds,
+  });
 }
 
 const mockCameras: CameraDevice[] = [

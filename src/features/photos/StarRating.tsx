@@ -4,13 +4,29 @@ interface StarRatingProps {
   value: Rating;
   onChange: (rating: Rating) => void;
   disabled?: boolean;
+  labels?: {
+    clear: string;
+    rating: (value: Rating) => string;
+    star: (value: Rating) => string;
+  };
 }
 
-export function StarRating({ value, onChange, disabled }: StarRatingProps) {
+const defaultLabels = {
+  clear: "Clear",
+  rating: (value: Rating) => `Rating ${value} stars`,
+  star: (value: Rating) => `${value} star${value === 1 ? "" : "s"}`,
+};
+
+export function StarRating({
+  value,
+  onChange,
+  disabled,
+  labels = defaultLabels,
+}: StarRatingProps) {
   return (
     <div
       className="rating-control flex items-center gap-1"
-      aria-label={`Rating ${value} stars`}
+      aria-label={labels.rating(value)}
     >
       {[1, 2, 3, 4, 5].map((rating) => {
         const nextRating = rating as Rating;
@@ -29,7 +45,7 @@ export function StarRating({ value, onChange, disabled }: StarRatingProps) {
             disabled={disabled}
             key={rating}
             onClick={() => onChange(nextRating)}
-            title={`${rating} star${rating === 1 ? "" : "s"}`}
+            title={labels.star(nextRating)}
             type="button"
           >
             {isActive ? "★" : "☆"}
@@ -42,7 +58,7 @@ export function StarRating({ value, onChange, disabled }: StarRatingProps) {
         onClick={() => onChange(0)}
         type="button"
       >
-        Clear
+        {labels.clear}
       </button>
     </div>
   );

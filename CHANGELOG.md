@@ -11,6 +11,14 @@ This project follows SemVer and keeps release notes in Keep a Changelog style.
 - Real Nikon Z6III camera discovery.
 - Camera-card photo enumeration.
 - Local thumbnail and preview caching.
+- Direct-culling filters and sorting for unrated, rated, 3+, 4+, 5-star,
+  capture-time, filename, and rating review workflows.
+- Local rating persistence for filtering and selective export while Nikon SDK
+  write-back is unavailable.
+- Selective export controls and a macOS ImageCaptureCore export command path
+  for copying chosen camera-card originals after culling.
+- Shooting review summary with rated, keeper, keep-rate, format mix, and
+  unrated counts.
 - Official Nikon SDK rating write-back when supported by the installed SDK;
   this is not currently confirmed or enabled.
 - Photo preview zoom controls with keyboard shortcuts for zoom in, zoom out,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createPhotoCatalog,
+  getCatalogView,
   getSelectedPhoto,
   selectPhoto,
   selectPhotoByOffset,
@@ -93,5 +94,54 @@ describe("photo catalog", () => {
     expect(selectPhotoEdge(second, "first").selectedPhotoId).toBe("dsc-1001");
     expect(selectPhotoEdge(second, "last").selectedPhotoId).toBe("dsc-1003");
     expect(selectPhotoEdge(createPhotoCatalog([]), "last").selectedPhotoId).toBeNull();
+  });
+
+  it("filters visible photos by rating state and threshold", () => {
+    const catalog = createPhotoCatalog(photos);
+
+    expect(getCatalogView(catalog, { filter: "unrated", sort: "captured_asc" }).photos)
+      .toHaveLength(1);
+    expect(
+      getCatalogView(catalog, { filter: "rated", sort: "captured_asc" }).photos.map(
+        (photo) => photo.id,
+      ),
+    ).toEqual(["dsc-1002", "dsc-1003"]);
+    expect(
+      getCatalogView(catalog, {
+        filter: "rating_3_plus",
+        sort: "captured_asc",
+      }).photos.map((photo) => photo.id),
+    ).toEqual(["dsc-1003"]);
+  });
+
+  it("sorts visible photos without mutating the source catalog", () => {
+    const catalog = createPhotoCatalog(photos);
+
+    expect(
+      getCatalogView(catalog, { filter: "all", sort: "rating_desc" }).photos.map(
+        (photo) => photo.id,
+      ),
+    ).toEqual(["dsc-1003", "dsc-1002", "dsc-1001"]);
+    expect(
+      getCatalogView(catalog, { filter: "all", sort: "filename_asc" }).photos.map(
+        (photo) => photo.id,
+      ),
+    ).toEqual(["dsc-1001", "dsc-1002", "dsc-1003"]);
+    expect(catalog.photos.map((photo) => photo.id)).toEqual([
+      "dsc-1001",
+      "dsc-1002",
+      "dsc-1003",
+    ]);
+  });
+
+  it("selects the first visible photo when the current selection is filtered out", () => {
+    const catalog = createPhotoCatalog(photos);
+    const view = getCatalogView(catalog, {
+      filter: "rating_3_plus",
+      sort: "captured_asc",
+    });
+
+    expect(view.selectedPhotoId).toBe("dsc-1003");
+    expect(getSelectedPhoto(view)?.fileName).toBe("DSC_1003.JPG");
   });
 });

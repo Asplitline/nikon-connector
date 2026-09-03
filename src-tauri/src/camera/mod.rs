@@ -4,20 +4,18 @@ pub mod cache;
 mod mock_provider;
 pub mod types;
 
-pub use types::{CameraDevice, CameraPhoto};
+pub use types::{CameraDevice, CameraPhoto, ExportPhotosSummary};
 
 pub fn list_cameras() -> Vec<CameraDevice> {
     #[cfg(target_os = "macos")]
     {
-        if let Ok(cameras) = helper_bridge::list_cameras() {
-            if !cameras.is_empty() {
-                return cameras;
-            }
-        }
-
+        return cameras_from_helper_result(helper_bridge::list_cameras());
     }
 
+    #[cfg(not(target_os = "macos"))]
+    {
     mock_provider::list_cameras()
+    }
 }
 
 pub fn list_photos(camera_id: &str, cache_dir: &std::path::Path) -> Vec<CameraPhoto> {
@@ -39,6 +37,31 @@ pub fn list_photos(camera_id: &str, cache_dir: &std::path::Path) -> Vec<CameraPh
     }
 }
 
+pub fn export_photos(
+    camera_id: &str,
+    photo_ids: Vec<String>,
+    destination_dir: &std::path::Path,
+) -> Result<ExportPhotosSummary, String> {
+    if photo_ids.is_empty() {
+        return Ok(ExportPhotosSummary {
+            copied: 0,
+            skipped: 0,
+            failed: 0,
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return helper_bridge::export_photos(camera_id, &photo_ids, destination_dir);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (camera_id, destination_dir);
+        Err("Camera export is only available on macOS.".into())
+    }
+}
+
 fn photos_from_helper_result(
     camera_id: &str,
     helper_result: Result<Vec<CameraPhoto>, String>,
@@ -48,6 +71,13 @@ fn photos_from_helper_result(
         _ if camera_id == "z6iii" => Some(mock_provider::list_photos(camera_id)),
         _ => None,
     }
+}
+
+#[cfg(target_os = "macos")]
+fn cameras_from_helper_result(
+    helper_result: Result<Vec<CameraDevice>, String>,
+) -> Vec<CameraDevice> {
+    helper_result.unwrap_or_default()
 }
 
 pub fn find_photo(photo_id: &str) -> Option<CameraPhoto> {
@@ -66,5 +96,20 @@ mod tests {
         assert!(photos_from_helper_result("z6iii", Err("helper unavailable".into())).is_some());
         assert!(photos_from_helper_result("real-camera", Ok(Vec::new())).is_none());
         assert!(photos_from_helper_result("real-camera", Err("helper unavailable".into())).is_none());
+    }
+
+    #[test]
+    fn camera_scan_does_not_present_mock_as_a_connected_camera() {
+        assert!(cameras_from_helper_result(Ok(Vec::new())).is_empty());
+        assert!(cameras_from_helper_result(Err("helper unavailable".into())).is_empty());
+    }
+
+    #[test]
+    fn export_empty_selection_returns_empty_summary() {
+        let summary = export_photos("z6iii", Vec::new(), std::path::Path::new("/tmp")).unwrap();
+
+        assert_eq!(summary.copied, 0);
+        assert_eq!(summary.skipped, 0);
+        assert_eq!(summary.failed, 0);
     }
 }

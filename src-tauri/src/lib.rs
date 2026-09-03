@@ -2,7 +2,7 @@ mod camera;
 mod nikon_sdk;
 mod rating;
 
-use camera::{CameraDevice, CameraPhoto};
+use camera::{CameraDevice, CameraPhoto, ExportPhotosSummary};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -31,6 +31,19 @@ fn set_photo_rating(photo_id: String, rating: u8) -> Result<CameraPhoto, String>
 }
 
 #[tauri::command]
+fn export_photos(
+    camera_id: &str,
+    photo_ids: Vec<String>,
+    destination_dir: &str,
+) -> Result<ExportPhotosSummary, String> {
+    camera::export_photos(
+        camera_id,
+        photo_ids,
+        std::path::Path::new(destination_dir),
+    )
+}
+
+#[tauri::command]
 fn get_app_info(app: tauri::AppHandle) -> AppInfo {
     AppInfo {
         name: app.package_info().name.clone(),
@@ -53,6 +66,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_info,
+            export_photos,
             list_cameras,
             list_photos,
             set_photo_rating

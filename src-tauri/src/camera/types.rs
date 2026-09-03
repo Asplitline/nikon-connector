@@ -28,3 +28,11 @@ pub struct CameraPhoto {
     pub can_download_original: Option<bool>,
     pub has_embedded_preview: Option<bool>,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportPhotosSummary {
+    pub copied: u32,
+    pub skipped: u32,
+    pub failed: u32,
+}

@@ -16,6 +16,8 @@ do {
         writeJSON(ImageCaptureCameraStore().listCameras(timeout: 3.0))
     case let .listPhotos(cameraId, cacheDir):
         writeJSON(ImageCaptureCameraStore().listPhotos(cameraId: cameraId, cacheDir: cacheDir, timeout: 8.0))
+    case let .exportPhotos(cameraId, destinationDir, photoIds):
+        writeJSON(ImageCaptureCameraStore().exportPhotos(cameraId: cameraId, destinationDir: destinationDir, photoIds: photoIds, timeout: 30.0))
     case .setRating:
         writeJSON(CommandError(error: "Nikon SDK unavailable."))
         exit(EXIT_FAILURE)

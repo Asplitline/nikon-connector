@@ -1,5 +1,6 @@
 use super::types::{CameraDevice, CameraPhoto};
 
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 pub fn list_cameras() -> Vec<CameraDevice> {
     vec![CameraDevice {
         id: "z6iii".into(),

@@ -22,6 +22,10 @@
   --color-danger: oklch(0.47 0.16 28);
   --color-danger-bg: oklch(0.95 0.035 28);
   --color-danger-line: oklch(0.82 0.07 28);
+  --color-warn: oklch(0.53 0.12 62);
+  --color-warn-bg: oklch(0.965 0.035 70);
+  --color-info: oklch(0.48 0.08 235);
+  --color-info-bg: oklch(0.955 0.025 235);
   --color-on-image: oklch(0.982 0.006 83);
   background: var(--color-canvas);
   color: var(--color-ink);
@@ -29,6 +33,32 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: oklch(0.18 0.009 72);
+  --color-panel: oklch(0.225 0.01 72);
+  --color-surface: oklch(0.272 0.012 72);
+  --color-stage: oklch(0.125 0.008 72);
+  --color-stage-line: oklch(0.43 0.012 72 / 0.72);
+  --color-stage-muted: oklch(0.7 0.014 78);
+  --color-stage-toolbar: oklch(0.2 0.01 72 / 0.92);
+  --color-ink: oklch(0.928 0.009 78);
+  --color-muted: oklch(0.69 0.014 76);
+  --color-line: oklch(0.38 0.012 76);
+  --color-hover: oklch(0.335 0.013 76);
+  --color-focus: oklch(0.72 0.11 78);
+  --color-star: oklch(0.78 0.14 84);
+  --color-ready: oklch(0.72 0.13 148);
+  --color-danger: oklch(0.72 0.16 28);
+  --color-danger-bg: oklch(0.27 0.055 28);
+  --color-danger-line: oklch(0.46 0.09 28);
+  --color-warn: oklch(0.76 0.12 72);
+  --color-warn-bg: oklch(0.29 0.045 72);
+  --color-info: oklch(0.74 0.08 235);
+  --color-info-bg: oklch(0.27 0.03 235);
+  --color-on-image: oklch(0.982 0.006 83);
 }
 
 * {
@@ -115,6 +145,446 @@ button {
   box-shadow: 0 1px 0 color-mix(in oklch, var(--color-ink) 4%, transparent);
 }
 
+.review-controls {
+  min-width: 0;
+}
+
+.visible-count {
+  flex-shrink: 0;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.control-field {
+  display: grid;
+  gap: 7px;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.control-field input,
+.control-field select {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 680;
+}
+
+.control-field input::placeholder {
+  color: color-mix(in oklch, var(--color-muted) 68%, transparent);
+}
+
+.control-field input:disabled,
+.control-field select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.control-field input:focus,
+.control-field select:focus {
+  outline: none;
+}
+
+.control-field input:focus-visible,
+.control-field select:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-focus);
+}
+
+.export-panel {
+  min-width: 0;
+}
+
+.export-status {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.68rem;
+  font-weight: 780;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.export-status.idle {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.export-status.exporting {
+  background: var(--color-warn-bg);
+  color: var(--color-warn);
+}
+
+.export-status.complete {
+  background: color-mix(in oklch, var(--color-ready) 14%, var(--color-surface));
+  color: color-mix(in oklch, var(--color-ready) 64%, var(--color-ink));
+}
+
+.export-status.error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.export-summary {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.shooting-review.disabled {
+  opacity: 0.55;
+}
+
+.review-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.review-metrics > div {
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 8px;
+}
+
+.review-metrics dt {
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 760;
+  line-height: 1.1;
+}
+
+.review-metrics dd {
+  margin: 5px 0 0;
+  color: var(--color-ink);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.review-format-mix,
+.review-summary-copy {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.segmented-control {
+  display: inline-grid;
+  grid-auto-columns: minmax(86px, 1fr);
+  grid-auto-flow: column;
+  gap: 3px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 3px;
+}
+
+.segmented-control button {
+  min-height: 34px;
+  border-radius: 6px;
+  padding: 0 12px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 720;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.segmented-control button.active,
+.segmented-control button[aria-pressed="true"] {
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+
+.segmented-control button:hover {
+  background: var(--color-hover);
+  color: var(--color-ink);
+}
+
+.segmented-control button.active:hover,
+.segmented-control button[aria-pressed="true"]:hover {
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+
+.connection-check {
+  min-width: 0;
+}
+
+.connection-check > div:first-child {
+  flex-wrap: wrap;
+}
+
+.connection-check-copy {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-summary {
+  min-height: 24px;
+  max-width: 100%;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-summary.ready {
+  background: color-mix(in oklch, var(--color-ready) 14%, var(--color-surface));
+  color: color-mix(in oklch, var(--color-ready) 64%, var(--color-ink));
+}
+
+.diagnostic-summary.checking,
+.diagnostic-summary.demo {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.diagnostic-summary.attention {
+  background: var(--color-warn-bg);
+  color: var(--color-warn);
+}
+
+.diagnostic-steps {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+}
+
+.diagnostic-step {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 9px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-surface) 72%, transparent);
+  padding: 9px;
+}
+
+.diagnostic-step.attention {
+  border-color: color-mix(in oklch, var(--color-warn) 42%, var(--color-line));
+  background: var(--color-warn-bg);
+}
+
+.diagnostic-step.complete {
+  border-color: color-mix(in oklch, var(--color-ready) 30%, var(--color-line));
+}
+
+.diagnostic-step.checking {
+  border-color: color-mix(in oklch, var(--color-info) 34%, var(--color-line));
+  background: var(--color-info-bg);
+}
+
+.diagnostic-marker {
+  display: grid;
+  height: 22px;
+  width: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-line);
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.diagnostic-step.complete .diagnostic-marker {
+  background: var(--color-ready);
+  color: var(--color-surface);
+}
+
+.diagnostic-step.attention .diagnostic-marker {
+  background: var(--color-warn);
+  color: var(--color-surface);
+}
+
+.diagnostic-step.checking .diagnostic-marker {
+  background: var(--color-info);
+  color: var(--color-surface);
+}
+
+.diagnostic-step.unavailable .diagnostic-marker {
+  background: color-mix(in oklch, var(--color-muted) 22%, var(--color-line));
+}
+
+.diagnostic-label-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.diagnostic-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.84rem;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.diagnostic-state {
+  flex-shrink: 0;
+  color: var(--color-muted);
+  font-size: 0.66rem;
+  font-weight: 760;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.diagnostic-step.attention .diagnostic-state {
+  color: var(--color-warn);
+}
+
+.diagnostic-step.complete .diagnostic-state {
+  color: color-mix(in oklch, var(--color-ready) 70%, var(--color-ink));
+}
+
+.diagnostic-detail {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-step-action {
+  min-height: 28px;
+  margin-top: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-warn) 34%, var(--color-line));
+  border-radius: 7px;
+  background: var(--color-surface);
+  padding: 0 9px;
+  color: var(--color-ink);
+  font-size: 0.72rem;
+  font-weight: 780;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.diagnostic-step-action:hover {
+  background: var(--color-hover);
+}
+
+.diagnostic-step-action:active {
+  transform: translateY(1px);
+}
+
+.diagnostic-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.primary-button.compact,
+.secondary-button.compact {
+  min-height: 34px;
+  width: 100%;
+  padding: 0 10px;
+  font-size: 0.76rem;
+}
+
+.connection-setup {
+  width: min(620px, 100%);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-surface);
+  padding: clamp(20px, 4vw, 34px);
+  color: var(--color-ink);
+  box-shadow: 0 18px 54px color-mix(in oklch, var(--color-ink) 10%, transparent);
+}
+
+.connection-kicker {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.connection-kicker.ready {
+  background: color-mix(in oklch, var(--color-ready) 14%, var(--color-surface));
+  color: color-mix(in oklch, var(--color-ready) 64%, var(--color-ink));
+}
+
+.connection-kicker.checking,
+.connection-kicker.demo {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.connection-kicker.attention {
+  background: var(--color-warn-bg);
+  color: var(--color-warn);
+}
+
+.connection-setup h2 {
+  margin: 18px 0 0;
+  font-size: clamp(1.75rem, 4vw, 3.15rem);
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 0.98;
+}
+
+.connection-next-step {
+  max-width: 52ch;
+  margin: 16px 0 0;
+  color: var(--color-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.connection-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.connection-setup .primary-button {
+  background: var(--color-ink);
+  color: var(--color-on-image);
+}
+
+.connection-setup .secondary-button {
+  border-color: var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.connection-help {
+  margin-top: 18px;
+  border-top: 1px solid color-mix(in oklch, var(--color-line) 70%, transparent);
+  padding-top: 18px;
+}
+
 .photo-stage {
   background:
     radial-gradient(
@@ -123,6 +593,15 @@ button {
       transparent 38%
     ),
     linear-gradient(180deg, oklch(0.215 0.012 72), var(--color-stage));
+}
+
+.photo-stage.empty {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-surface) 88%, var(--color-canvas)) 0%,
+      var(--color-canvas) 100%
+    );
 }
 
 .review-image {
@@ -253,11 +732,18 @@ button {
   background: color-mix(in oklch, var(--color-ink) 34%, transparent);
 }
 
-.settings-backdrop {
+.modal-overlay {
+  background: color-mix(in oklch, var(--color-canvas) 74%, transparent);
+  backdrop-filter: blur(2px) saturate(0.96);
+}
+
+.settings-backdrop,
+.modal-backdrop {
   cursor: default;
 }
 
-.settings-panel {
+.settings-panel,
+.connection-dialog {
   box-shadow:
     0 28px 90px color-mix(in oklch, var(--color-ink) 28%, transparent),
     0 2px 8px color-mix(in oklch, var(--color-ink) 12%, transparent);
