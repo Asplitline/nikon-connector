@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPreviewQueue } from "./previewQueue";
+import { createPreviewPlan, createPreviewQueue, needsTier } from "./previewQueue";
 import type { CameraPhoto } from "./types";
 
 function photo(id: string, previewUrl = "", thumbnailUrl = ""): CameraPhoto {
@@ -45,5 +45,59 @@ describe("preview queue", () => {
     });
 
     expect(queue.map((item) => item.id)).toEqual(["one", "three"]);
+  });
+
+  it("upgrades the selected photo from thumbnail-only to preview", () => {
+    // 只有缩略图的选中项必须能继续请求大图，这是渐进式细化的前提
+    const plan = createPreviewPlan({
+      photos: [photo("only-thumb", "", "/cache/only-thumb.jpg")],
+      selectedPhotoId: "only-thumb",
+      inFlightPhotoIds: new Set(),
+      radius: 0,
+    });
+
+    expect(plan).toEqual([
+      { photo: expect.objectContaining({ id: "only-thumb" }), tier: "preview" },
+    ]);
+  });
+
+  it("leaves neighbours alone once they have a thumbnail", () => {
+    const plan = createPreviewPlan({
+      photos: [
+        photo("left", "", "/cache/left-thumb.jpg"),
+        photo("center"),
+        photo("right", "", "/cache/right-thumb.jpg"),
+      ],
+      selectedPhotoId: "center",
+      inFlightPhotoIds: new Set(),
+      radius: 1,
+    });
+
+    expect(plan.map((item) => `${item.photo.id}:${item.tier}`)).toEqual(["center:preview"]);
+  });
+
+  it("asks for the preview tier only until the preview exists", () => {
+    const inFlight = new Set<string>();
+
+    expect(needsTier(photo("a"), "preview", inFlight)).toBe(true);
+    expect(needsTier(photo("a", "", "/thumb.jpg"), "preview", inFlight)).toBe(true);
+    expect(needsTier(photo("a", "/preview.jpg", "/thumb.jpg"), "preview", inFlight)).toBe(
+      false,
+    );
+  });
+
+  it("treats any cached tier as enough for the thumbnail tier", () => {
+    const inFlight = new Set<string>();
+
+    expect(needsTier(photo("a"), "thumbnail", inFlight)).toBe(true);
+    expect(needsTier(photo("a", "", "/thumb.jpg"), "thumbnail", inFlight)).toBe(false);
+    expect(needsTier(photo("a", "/preview.jpg"), "thumbnail", inFlight)).toBe(false);
+  });
+
+  it("never re-requests a photo that is already in flight", () => {
+    const inFlight = new Set(["a"]);
+
+    expect(needsTier(photo("a"), "preview", inFlight)).toBe(false);
+    expect(needsTier(photo("a"), "thumbnail", inFlight)).toBe(false);
   });
 });

@@ -25,7 +25,7 @@ export function StarRating({
 }: StarRatingProps) {
   return (
     <div
-      className="rating-control flex items-center gap-1"
+      className="flex items-center gap-1 rounded-[10px] border border-line bg-surface p-[3px] whitespace-nowrap shadow-[0_1px_0_color-mix(in_oklch,var(--app-ink)_4%,transparent)] max-sm:max-w-full max-sm:overflow-x-auto"
       aria-label={labels.rating(value)}
     >
       {[1, 2, 3, 4, 5].map((rating) => {
@@ -35,12 +35,13 @@ export function StarRating({
         return (
           <button
             className={[
-              "rating-star grid h-10 w-10 place-items-center rounded-md text-[20px] transition",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
+              "grid h-10 w-10 place-items-center rounded-md text-[20px]",
+              "transition-[background-color,border-color,color,opacity,transform,box-shadow] duration-[180ms] ease-[ease] active:translate-y-px",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
               isActive
-                ? "text-[var(--color-star)]"
-                : "text-[var(--color-muted)] hover:text-[var(--color-ink)]",
-              disabled ? "cursor-not-allowed opacity-50" : "hover:bg-[var(--color-hover)]",
+                ? "text-star"
+                : "text-muted hover:text-ink",
+              disabled ? "cursor-not-allowed opacity-50" : "hover:bg-hover",
             ].join(" ")}
             disabled={disabled}
             key={rating}
@@ -53,7 +54,7 @@ export function StarRating({
         );
       })}
       <button
-        className="clear-rating ml-2 min-h-10 rounded-md px-3 text-xs font-semibold text-[var(--color-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] disabled:cursor-not-allowed disabled:opacity-45"
+        className="ml-2 min-h-10 rounded-md px-3 text-xs font-semibold text-muted transition-[background-color,border-color,color,opacity,transform,box-shadow] duration-[180ms] ease-[ease] active:translate-y-px hover:bg-hover hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-45"
         disabled={disabled || value === 0}
         onClick={() => onChange(0)}
         type="button"

@@ -1,3 +1,5 @@
+import { type Locale, t } from "../../i18n";
+
 export type ZoomAction = "in" | "out" | "fit" | "actual";
 
 export interface PhotoZoomState {
@@ -39,8 +41,10 @@ export function applyZoomAction(
   };
 }
 
-export function formatZoomLabel(state: PhotoZoomState) {
-  return state.mode === "fit" ? "Fit" : `${Math.round(state.scale * 100)}%`;
+export function formatZoomLabel(state: PhotoZoomState, locale?: Locale) {
+  return state.mode === "fit"
+    ? t("zoom.fit", undefined, locale)
+    : `${Math.round(state.scale * 100)}%`;
 }
 
 function clampScale(scale: number) {
