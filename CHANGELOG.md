@@ -6,6 +6,8 @@ This project follows SemVer and keeps release notes in Keep a Changelog style.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-09-04
+
 ### Changed
 
 - Camera helper now runs as a persistent daemon over NDJSON instead of one
