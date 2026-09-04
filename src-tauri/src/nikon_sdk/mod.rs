@@ -5,7 +5,8 @@ const SDK_VENDOR_DIR: &str = "vendor/NikonSDK";
 pub fn rating_write_back_available() -> bool {
     // Keep this disabled until `src-tauri/vendor/NikonSDK/` contains the real
     // Nikon SDK and the exact Z6III rating API has been verified.
-    let _ = expected_sdk_artifacts_present(Path::new(env!("CARGO_MANIFEST_DIR")).join(SDK_VENDOR_DIR));
+    let _ =
+        expected_sdk_artifacts_present(Path::new(env!("CARGO_MANIFEST_DIR")).join(SDK_VENDOR_DIR));
     false
 }
 

@@ -15,6 +15,12 @@ export interface ExportPhotosSummary {
   skipped: number;
 }
 
+export interface CachedPhotoPreview {
+  photoId: string;
+  previewUrl: string;
+  thumbnailUrl: string;
+}
+
 export async function listCameras(): Promise<CameraDevice[]> {
   if (!canUseTauri()) {
     return mockCameras;
@@ -29,6 +35,57 @@ export async function listPhotos(cameraId: string): Promise<CameraPhoto[]> {
   }
 
   return invoke<CameraPhoto[]>("list_photos", { cameraId });
+}
+
+export async function openImageCapture(): Promise<void> {
+  if (!canUseTauri()) {
+    return;
+  }
+
+  await invoke("open_image_capture");
+}
+
+export async function cachePhotoPreview(
+  cameraId: string,
+  photoId: string,
+): Promise<CachedPhotoPreview> {
+  if (!canUseTauri()) {
+    const photo = mockPhotos.find((item) => item.cameraId === cameraId && item.id === photoId);
+    return {
+      photoId,
+      previewUrl: photo?.previewUrl ?? "",
+      thumbnailUrl: photo?.thumbnailUrl ?? "",
+    };
+  }
+
+  return invoke<CachedPhotoPreview>("cache_photo_preview", { cameraId, photoId });
+}
+
+export async function cachePhotoPreviews(
+  cameraId: string,
+  photoIds: string[],
+  options: { previewPhotoIds?: string[] } = {},
+): Promise<CachedPhotoPreview[]> {
+  if (photoIds.length === 0) {
+    return [];
+  }
+
+  if (!canUseTauri()) {
+    return photoIds.map((photoId) => {
+      const photo = mockPhotos.find((item) => item.cameraId === cameraId && item.id === photoId);
+      return {
+        photoId,
+        previewUrl: photo?.previewUrl ?? "",
+        thumbnailUrl: photo?.thumbnailUrl ?? "",
+      };
+    });
+  }
+
+  return invoke<CachedPhotoPreview[]>("cache_photo_previews", {
+    cameraId,
+    photoIds,
+    previewPhotoIds: options.previewPhotoIds ?? [],
+  });
 }
 
 export async function setPhotoRating(

@@ -1,6 +1,8 @@
 enum Command {
     case listCameras
     case listPhotos(cameraId: String, cacheDir: String)
+    case cachePhotoPreview(cameraId: String, photoId: String, cacheDir: String)
+    case cachePhotoPreviews(cameraId: String, photoIds: [String], previewPhotoIds: [String], cacheDir: String)
     case exportPhotos(cameraId: String, destinationDir: String, photoIds: [String])
     case setRating(photoId: String, rating: Int)
 
@@ -12,6 +14,19 @@ enum Command {
         case "list-photos":
             return .listPhotos(
                 cameraId: try value(after: "--camera-id", in: args),
+                cacheDir: try value(after: "--cache-dir", in: args)
+            )
+        case "cache-photo-preview":
+            return .cachePhotoPreview(
+                cameraId: try value(after: "--camera-id", in: args),
+                photoId: try value(after: "--photo-id", in: args),
+                cacheDir: try value(after: "--cache-dir", in: args)
+            )
+        case "cache-photo-previews":
+            return .cachePhotoPreviews(
+                cameraId: try value(after: "--camera-id", in: args),
+                photoIds: values(after: "--photo-id", in: args),
+                previewPhotoIds: values(after: "--preview-photo-id", in: args),
                 cacheDir: try value(after: "--cache-dir", in: args)
             )
         case "export-photos":

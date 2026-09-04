@@ -16,4 +16,11 @@ describe("i18n", () => {
       "Nikon Z6III 已挂载，包含 3 张照片。",
     );
   });
+
+  it("calls out camera power before USB troubleshooting", () => {
+    expect(t("status.connectUsb")).toContain("先打开相机电源");
+    expect(t("status.connectUsb")).toContain("保持唤醒");
+    expect(t("diagnostic.detail.usbConnect")).toContain("先打开相机电源");
+    expect(t("diagnostic.detail.usbConnect")).toContain("保持唤醒");
+  });
 });

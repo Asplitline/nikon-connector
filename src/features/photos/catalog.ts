@@ -18,7 +18,7 @@ export interface PhotoCatalogViewOptions {
 export function createPhotoCatalog(photos: CameraPhoto[]): PhotoCatalogState {
   return {
     photos,
-    selectedPhotoId: photos[0]?.id ?? null,
+    selectedPhotoId: firstPreviewablePhoto(photos)?.id ?? photos[0]?.id ?? null,
   };
 }
 
@@ -85,6 +85,24 @@ export function updatePhotoRating(
   };
 }
 
+export function updatePhotoPreview(
+  state: PhotoCatalogState,
+  preview: { photoId: string; previewUrl: string; thumbnailUrl: string },
+): PhotoCatalogState {
+  return {
+    ...state,
+    photos: state.photos.map((photo) =>
+      photo.id === preview.photoId
+        ? {
+            ...photo,
+            previewUrl: preview.previewUrl || photo.previewUrl,
+            thumbnailUrl: preview.thumbnailUrl || photo.thumbnailUrl,
+          }
+        : photo,
+    ),
+  };
+}
+
 export function getSelectedPhoto(
   state: PhotoCatalogState,
 ): CameraPhoto | undefined {
@@ -101,12 +119,16 @@ export function getCatalogView(
     .sort((left, right) => comparePhotos(left, right, options.sort));
   const selectedPhotoId = photos.some((photo) => photo.id === state.selectedPhotoId)
     ? state.selectedPhotoId
-    : photos[0]?.id ?? null;
+    : firstPreviewablePhoto(photos)?.id ?? photos[0]?.id ?? null;
 
   return {
     photos,
     selectedPhotoId,
   };
+}
+
+function firstPreviewablePhoto(photos: CameraPhoto[]) {
+  return photos.find((photo) => photo.previewUrl || photo.thumbnailUrl);
 }
 
 function clampIndex(index: number, length: number) {

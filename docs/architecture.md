@@ -14,6 +14,8 @@ on the connected camera/card and apply official 0-5 star ratings.
 - macOS ImageCaptureCore helper bridge for camera/card enumeration and local
   thumbnail and preview caching, with mock fallback when the helper is
   unavailable or reports no cameras
+- Optional future gphoto2/libgphoto2 PTP backend for Nikon cameras, gated behind
+  `NIKON_CAMERA_BACKEND=gphoto2` until real-device app performance is verified
 - Nikon Remote Module SDK 2.0.0 adapter shell for deferred rating write-back
 
 ## Milestone 1
@@ -55,6 +57,11 @@ PTP or ImageCaptureCore image objects map into `CameraPhoto` as follows:
 4. Keep `set_photo_rating` on a clear unsupported path until the Nikon SDK
    exposes and verifies a camera-visible Z6III 0-5 star rating API.
 5. Preserve the TypeScript `CameraPhoto` contract so UI code does not change.
+6. Track the gphoto2/PTP backend as an opt-in provider inside the same Tauri app,
+   not as a separate user-facing application. The backend must own one
+   long-lived PTP session and serialize all camera operations because macOS
+   Image Capture services can otherwise claim the USB device and per-command
+   PTP startup costs are high.
 
 ## Rating Write-Back State
 

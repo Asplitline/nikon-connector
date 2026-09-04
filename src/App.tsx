@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -10,6 +10,7 @@ import {
   selectPhoto,
   selectPhotoByOffset,
   selectPhotoEdge,
+  updatePhotoPreview,
   updatePhotoRating,
 } from "./features/photos/catalog";
 import {
@@ -49,15 +50,33 @@ import {
   createShootingReview,
   type ShootingReview,
 } from "./features/photos/shootingReview";
+import { createPreviewQueue } from "./features/photos/previewQueue";
+import {
+  formatPerformanceOccupancy,
+  type PerformanceMetrics,
+} from "./features/performance/metrics";
+import { usePerformanceMetrics } from "./features/performance/usePerformanceMetrics";
 import { defaultLocale, locales, type Locale, t } from "./i18n";
 import {
   checkForUpdate,
+  exportLogs,
   getAppInfo,
+  getLogInfo,
   installPendingUpdate,
+  writeAppLog,
   type AppInfo,
   type AvailableUpdate,
+  type LogInfo,
 } from "./lib/appApi";
-import { exportPhotos, listCameras, listPhotos, setPhotoRating } from "./lib/cameraApi";
+import { createSingleFlight } from "./lib/singleFlight";
+import {
+  exportPhotos,
+  cachePhotoPreviews,
+  listCameras,
+  listPhotos,
+  openImageCapture,
+  setPhotoRating,
+} from "./lib/cameraApi";
 import "./index.css";
 
 type UpdateStatus =
@@ -70,6 +89,7 @@ type UpdateStatus =
 export type ThemeMode = "light" | "dark";
 
 type ExportStatus = "idle" | "exporting" | "complete" | "error";
+type LogStatus = "idle" | "exporting" | "error";
 
 function imageSource(url: string) {
   return !url || /^(https?:|asset:|data:|blob:)/i.test(url)
@@ -99,23 +119,28 @@ function App() {
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [logInfo, setLogInfo] = useState<LogInfo | null>(null);
+  const [logStatus, setLogStatus] = useState<LogStatus>("idle");
+  const inFlightPreviewIdsRef = useRef(new Set<string>());
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({
     state: "idle",
     message: t("status.notChecked"),
   });
+  const performanceMetrics = usePerformanceMetrics();
   const tr = useCallback(
     (key: Parameters<typeof t>[0], values?: Parameters<typeof t>[1]) =>
       t(key, values, locale),
     [locale],
   );
 
-  const loadCamera = useCallback(async () => {
+  const runCameraLoad = useCallback(async () => {
     try {
       setConnectionState("loading");
       setScanError(null);
       const nextCameras = await listCameras();
 
       if (nextCameras.length === 0) {
+        writeAppLog("warn", "frontend.camera", "no cameras found during scan");
         setActiveCamera(null);
         setCatalog(createPhotoCatalog([]));
         setConnectionState("not_connected");
@@ -150,12 +175,38 @@ function App() {
       setScanError(message);
       setConnectionState("error");
       setStatus(message);
+      writeAppLog("error", "frontend.camera", `camera scan failed: ${message}`);
     }
   }, [tr]);
+
+  const loadCamera = useMemo(() => createSingleFlight(runCameraLoad), [runCameraLoad]);
 
   useEffect(() => {
     void Promise.resolve().then(loadCamera);
   }, [loadCamera]);
+
+  useEffect(() => {
+    writeAppLog("info", "frontend.app", "application mounted");
+
+    function reportError(event: ErrorEvent) {
+      writeAppLog("error", "frontend.window", event.message);
+    }
+
+    function reportRejection(event: PromiseRejectionEvent) {
+      const reason = event.reason instanceof Error
+        ? event.reason.message
+        : String(event.reason);
+      writeAppLog("error", "frontend.promise", reason);
+    }
+
+    window.addEventListener("error", reportError);
+    window.addEventListener("unhandledrejection", reportRejection);
+
+    return () => {
+      window.removeEventListener("error", reportError);
+      window.removeEventListener("unhandledrejection", reportRejection);
+    };
+  }, []);
 
   const catalogView = useMemo(
     () =>
@@ -214,11 +265,74 @@ function App() {
     [catalog.photos],
   );
 
+  useEffect(() => {
+    if (!isReviewReady || !activeCamera || !catalogView.selectedPhotoId) {
+      return;
+    }
+
+    const selectedPhotoId = catalogView.selectedPhotoId;
+    const queue = createPreviewQueue({
+      photos: catalogView.photos,
+      selectedPhotoId,
+      inFlightPhotoIds: inFlightPreviewIdsRef.current,
+      radius: 2,
+    });
+
+    if (queue.length === 0) {
+      return;
+    }
+
+    void writeAppLog(
+      "info",
+      "frontend.photo_preview",
+      `preview queue started selected=${selectedPhotoId} count=${queue.length}`,
+    );
+
+    const photoIds = queue.map((photo) => photo.id);
+    for (const photoId of photoIds) {
+      inFlightPreviewIdsRef.current.add(photoId);
+    }
+
+    void (async () => {
+      try {
+        const previews = await cachePhotoPreviews(activeCamera.id, photoIds, {
+          previewPhotoIds: [selectedPhotoId],
+        });
+        for (const preview of previews) {
+          if (preview.previewUrl || preview.thumbnailUrl) {
+            setCatalog((current) => updatePhotoPreview(current, preview));
+          }
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        writeAppLog(
+          "warn",
+          "frontend.photo_preview",
+          `preview batch failed selected=${catalogView.selectedPhotoId}: ${message}`,
+        );
+      } finally {
+        for (const photoId of photoIds) {
+          inFlightPreviewIdsRef.current.delete(photoId);
+        }
+      }
+    })();
+  }, [
+    activeCamera,
+    catalogView.photos,
+    catalogView.selectedPhotoId,
+    isReviewReady,
+  ]);
+
   const handleOpenImageCapture = useCallback(async () => {
     try {
-      await openPath("/System/Applications/Image Capture.app");
+      await openImageCapture();
     } catch (error) {
       setStatus(
+        error instanceof Error ? error.message : tr("status.couldNotOpenImageCapture"),
+      );
+      writeAppLog(
+        "error",
+        "frontend.image_capture",
         error instanceof Error ? error.message : tr("status.couldNotOpenImageCapture"),
       );
     }
@@ -229,11 +343,13 @@ function App() {
       try {
         await openUrl("x-apple.systempreferences:com.apple.preference.security?Privacy_Camera");
       } catch (error) {
+        const message = error instanceof Error
+          ? error.message
+          : tr("status.couldNotOpenPrivacy");
         setStatus(
-          error instanceof Error
-            ? error.message
-            : tr("status.couldNotOpenPrivacy"),
+          message,
         );
+        writeAppLog("error", "frontend.privacy", message);
       }
       return;
     }
@@ -254,11 +370,22 @@ function App() {
 
   useEffect(() => {
     void getAppInfo().then(setAppInfo).catch((error) => {
+      const message = error instanceof Error ? error.message : tr("status.couldNotReadAppInfo");
       setUpdateStatus({
         state: "error",
-        message:
-          error instanceof Error ? error.message : tr("status.couldNotReadAppInfo"),
+        message,
       });
+      writeAppLog("error", "frontend.app_info", message);
+    });
+  }, [tr]);
+
+  useEffect(() => {
+    void getLogInfo().then(setLogInfo).catch((error) => {
+      writeAppLog(
+        "error",
+        "frontend.logs",
+        error instanceof Error ? error.message : tr("status.couldNotReadLogs"),
+      );
     });
   }, [tr]);
 
@@ -282,11 +409,13 @@ function App() {
         update,
       });
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : tr("status.updateCheckFailed");
       setUpdateStatus({
         state: "error",
-        message:
-          error instanceof Error ? error.message : tr("status.updateCheckFailed"),
+        message,
       });
+      writeAppLog("error", "frontend.update", message);
     }
   }, [tr]);
 
@@ -323,11 +452,13 @@ function App() {
         }
       });
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : tr("status.updateInstallFailed");
       setUpdateStatus({
         state: "error",
-        message:
-          error instanceof Error ? error.message : tr("status.updateInstallFailed"),
+        message,
       });
+      writeAppLog("error", "frontend.update", message);
     }
   }, [tr]);
 
@@ -341,6 +472,7 @@ function App() {
       setStatus(tr("status.ratingSaved", { rating, fileName: photo.fileName }));
     } catch (error) {
       if (isLocalOnlyRatingError(error)) {
+        writeAppLog("warn", "frontend.rating", `rating saved locally for ${photo.id}`);
         setStatus(tr("status.ratingLocalSaved", { rating, fileName: photo.fileName }));
         setRatingError(tr("status.ratingLocalOnly"));
         return;
@@ -352,6 +484,11 @@ function App() {
         error instanceof Error
           ? error.message
           : tr("status.ratingWriteFailed"),
+      );
+      writeAppLog(
+        "error",
+        "frontend.rating",
+        error instanceof Error ? error.message : tr("status.ratingWriteFailed"),
       );
     }
   }, [tr]);
@@ -385,10 +522,30 @@ function App() {
         }),
       );
     } catch (error) {
+      const message = error instanceof Error ? error.message : tr("status.exportFailed");
       setExportStatus("error");
-      setStatus(error instanceof Error ? error.message : tr("status.exportFailed"));
+      setStatus(message);
+      writeAppLog("error", "frontend.export", message);
     }
   }, [activeCamera, exportDestination, exportSelection.photoIds, tr]);
+
+  const handleExportLogs = useCallback(async () => {
+    setLogStatus("exporting");
+
+    try {
+      const path = await exportLogs();
+      const nextInfo = await getLogInfo();
+      setLogInfo(nextInfo);
+      setLogStatus("idle");
+      setStatus(tr("status.logsExported", { path }));
+      await openPath(path);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : tr("status.logsExportFailed");
+      setLogStatus("error");
+      setStatus(message);
+      writeAppLog("error", "frontend.logs", message);
+    }
+  }, [tr]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -541,6 +698,8 @@ function App() {
             review={shootingReview}
           />
 
+          <PerformancePanel locale={locale} metrics={performanceMetrics} />
+
           <section className="mt-8 space-y-3">
             <p className="section-label">{tr("connection.library")}</p>
             <dl className="library-stats grid grid-cols-2 gap-3 text-sm">
@@ -659,6 +818,22 @@ function App() {
                         "review-image rounded-md object-contain",
                         zoom.mode === "fit" ? "max-h-full max-w-full" : "scaled",
                       ].join(" ")}
+                      onError={(event) => {
+                        const sourceUrl = selectedPhoto.previewUrl || selectedPhoto.thumbnailUrl;
+                        void writeAppLog(
+                          "warn",
+                          "frontend.photo_preview",
+                          `main image failed photo=${selectedPhoto.id} source=${sourceUrl} rendered=${event.currentTarget.currentSrc}`,
+                        );
+                      }}
+                      onLoad={(event) => {
+                        const sourceUrl = selectedPhoto.previewUrl || selectedPhoto.thumbnailUrl;
+                        void writeAppLog(
+                          "info",
+                          "frontend.photo_preview",
+                          `main image loaded photo=${selectedPhoto.id} source=${sourceUrl} rendered=${event.currentTarget.currentSrc} natural=${event.currentTarget.naturalWidth}x${event.currentTarget.naturalHeight}`,
+                        );
+                      }}
                       src={imageSource(selectedPhoto.previewUrl || selectedPhoto.thumbnailUrl)}
                       style={
                         zoom.mode === "scaled"
@@ -725,6 +900,13 @@ function App() {
                       <img
                         alt=""
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
+                        onError={(event) => {
+                          void writeAppLog(
+                            "warn",
+                            "frontend.photo_preview",
+                            `thumbnail failed photo=${photo.id} source=${photo.thumbnailUrl} rendered=${event.currentTarget.currentSrc}`,
+                          );
+                        }}
                         src={imageSource(photo.thumbnailUrl)}
                       />
                     ) : null}
@@ -746,8 +928,11 @@ function App() {
           appInfo={appInfo}
           autoUpdateEnabled={autoUpdateEnabled}
           locale={locale}
+          logInfo={logInfo}
+          logStatus={logStatus}
           onCheckForUpdate={() => void handleCheckForUpdate()}
           onClose={() => setSettingsOpen(false)}
+          onExportLogs={() => void handleExportLogs()}
           onInstallUpdate={() => void handleInstallUpdate()}
           onLocaleChange={setLocale}
           onThemeChange={setTheme}
@@ -1049,6 +1234,30 @@ export function ShootingReviewPanel({
   );
 }
 
+export function PerformancePanel({
+  locale = defaultLocale,
+  metrics,
+}: {
+  locale?: Locale;
+  metrics: PerformanceMetrics;
+}) {
+  return (
+    <section className="performance-panel mt-8 space-y-3">
+      <p className="section-label">{t("performance.title", undefined, locale)}</p>
+      <dl className="performance-metrics">
+        <div>
+          <dt>{t("performance.fps", undefined, locale)}</dt>
+          <dd>{metrics.fps === null ? "--" : metrics.fps}</dd>
+        </div>
+        <div>
+          <dt>{t("performance.occupancy", undefined, locale)}</dt>
+          <dd>{formatPerformanceOccupancy(metrics.memory)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 export function AppearanceControls({
   locale = defaultLocale,
   onThemeChange,
@@ -1326,12 +1535,15 @@ function PhotoDetails({ locale, photo }: { locale: Locale; photo: CameraPhoto })
   );
 }
 
-function SettingsPanel({
+export function SettingsPanel({
   appInfo,
   autoUpdateEnabled,
+  logInfo,
+  logStatus,
   locale,
   onCheckForUpdate,
   onClose,
+  onExportLogs,
   onInstallUpdate,
   onLocaleChange,
   onThemeChange,
@@ -1341,9 +1553,12 @@ function SettingsPanel({
 }: {
   appInfo: AppInfo | null;
   autoUpdateEnabled: boolean;
+  logInfo: LogInfo | null;
+  logStatus: LogStatus;
   locale: Locale;
   onCheckForUpdate: () => void;
   onClose: () => void;
+  onExportLogs: () => void;
   onInstallUpdate: () => void;
   onLocaleChange: (locale: Locale) => void;
   onThemeChange: (theme: ThemeMode) => void;
@@ -1479,6 +1694,36 @@ function SettingsPanel({
           </section>
 
           <section className="settings-section">
+            <div className="flex items-center justify-between gap-4">
+              <p className="section-label">{t("settings.diagnosticLogs", undefined, locale)}</p>
+              <button
+                className="secondary-button compact"
+                disabled={logStatus === "exporting"}
+                onClick={onExportLogs}
+                type="button"
+              >
+                {logStatus === "exporting"
+                  ? t("settings.exportingLogs", undefined, locale)
+                  : t("settings.exportLogs", undefined, locale)}
+              </button>
+            </div>
+            <dl className="mt-4 grid gap-3 text-sm">
+              <div className="settings-row">
+                <dt>{t("settings.logFile", undefined, locale)}</dt>
+                <dd>{logInfo?.logPath ?? t("settings.loading", undefined, locale)}</dd>
+              </div>
+              <div className="settings-row">
+                <dt>{t("settings.exportFile", undefined, locale)}</dt>
+                <dd>{logInfo?.exportPath ?? t("settings.loading", undefined, locale)}</dd>
+              </div>
+              <div className="settings-row">
+                <dt>{t("settings.logSize", undefined, locale)}</dt>
+                <dd>{logInfo ? formatBytes(logInfo.sizeBytes) : t("settings.loading", undefined, locale)}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="settings-section">
             <p className="section-label">{t("settings.developmentLog", undefined, locale)}</p>
             <pre className="changelog-view mt-4">{changelog}</pre>
           </section>
@@ -1489,8 +1734,12 @@ function SettingsPanel({
 }
 
 function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
   if (bytes < 1024 * 1024) {
-    return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
   }
 
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;

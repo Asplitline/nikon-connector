@@ -1,4 +1,7 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use tauri::Manager;
 
@@ -24,10 +27,8 @@ mod tests {
 
     #[test]
     fn creates_photo_previews_under_the_app_cache_directory() {
-        let base = std::env::temp_dir().join(format!(
-            "nikon-connector-cache-test-{}",
-            std::process::id()
-        ));
+        let base =
+            std::env::temp_dir().join(format!("nikon-connector-cache-test-{}", std::process::id()));
         let expected = base.join("photo-previews");
 
         let result = photo_cache_dir_from_base(&base).expect("cache directory is created");

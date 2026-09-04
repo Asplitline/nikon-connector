@@ -16,6 +16,14 @@ export interface AvailableUpdate {
   body?: string;
 }
 
+export interface LogInfo {
+  exportPath: string;
+  logPath: string;
+  sizeBytes: number;
+}
+
+export type LogLevel = "info" | "warn" | "error";
+
 let pendingUpdate: Update | null = null;
 
 const canUseTauri = () => "__TAURI_INTERNALS__" in window;
@@ -62,6 +70,38 @@ export async function installPendingUpdate(
 
   await pendingUpdate.downloadAndInstall(onEvent);
   await relaunch();
+}
+
+export async function getLogInfo(): Promise<LogInfo> {
+  if (!canUseTauri()) {
+    return {
+      exportPath: "Browser preview does not write desktop logs.",
+      logPath: "Browser preview does not write desktop logs.",
+      sizeBytes: 0,
+    };
+  }
+
+  return invoke<LogInfo>("get_log_info");
+}
+
+export async function exportLogs(): Promise<string> {
+  if (!canUseTauri()) {
+    throw new Error("Logs can only be exported in the desktop app.");
+  }
+
+  return invoke<string>("export_logs");
+}
+
+export function writeAppLog(
+  level: LogLevel,
+  target: string,
+  message: string,
+): void {
+  if (!canUseTauri()) {
+    return;
+  }
+
+  void invoke("write_client_log", { level, message, target }).catch(() => undefined);
 }
 
 const browserChangelog = `# Changelog

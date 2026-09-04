@@ -6,6 +6,8 @@ This project follows SemVer and keeps release notes in Keep a Changelog style.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-03
+
 ### Added
 
 - Real Nikon Z6III camera discovery.

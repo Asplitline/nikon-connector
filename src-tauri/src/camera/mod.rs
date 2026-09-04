@@ -1,10 +1,10 @@
+pub mod cache;
 #[cfg(target_os = "macos")]
 mod helper_bridge;
-pub mod cache;
 mod mock_provider;
 pub mod types;
 
-pub use types::{CameraDevice, CameraPhoto, ExportPhotosSummary};
+pub use types::{CachedPhotoPreview, CameraDevice, CameraPhoto, ExportPhotosSummary};
 
 pub fn list_cameras() -> Vec<CameraDevice> {
     #[cfg(target_os = "macos")]
@@ -14,17 +14,16 @@ pub fn list_cameras() -> Vec<CameraDevice> {
 
     #[cfg(not(target_os = "macos"))]
     {
-    mock_provider::list_cameras()
+        mock_provider::list_cameras()
     }
 }
 
 pub fn list_photos(camera_id: &str, cache_dir: &std::path::Path) -> Vec<CameraPhoto> {
     #[cfg(target_os = "macos")]
     {
-        if let Some(photos) = photos_from_helper_result(
-            camera_id,
-            helper_bridge::list_photos(camera_id, cache_dir),
-        ) {
+        if let Some(photos) =
+            photos_from_helper_result(camera_id, helper_bridge::list_photos(camera_id, cache_dir))
+        {
             return photos;
         }
 
@@ -34,6 +33,47 @@ pub fn list_photos(camera_id: &str, cache_dir: &std::path::Path) -> Vec<CameraPh
     #[cfg(not(target_os = "macos"))]
     {
         mock_provider::list_photos(camera_id)
+    }
+}
+
+pub fn cache_photo_preview(
+    camera_id: &str,
+    photo_id: &str,
+    cache_dir: &std::path::Path,
+) -> Result<CachedPhotoPreview, String> {
+    let photo_ids = [photo_id.to_string()];
+    cache_photo_previews(camera_id, &photo_ids, &photo_ids, cache_dir)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "No preview result was returned.".to_string())
+}
+
+pub fn cache_photo_previews(
+    camera_id: &str,
+    photo_ids: &[String],
+    preview_photo_ids: &[String],
+    cache_dir: &std::path::Path,
+) -> Result<Vec<CachedPhotoPreview>, String> {
+    if photo_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return helper_bridge::cache_photo_previews(camera_id, photo_ids, preview_photo_ids, cache_dir);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (camera_id, preview_photo_ids, cache_dir);
+        Ok(photo_ids
+            .iter()
+            .map(|photo_id| CachedPhotoPreview {
+                photo_id: photo_id.clone(),
+                preview_url: String::new(),
+                thumbnail_url: String::new(),
+            })
+            .collect())
     }
 }
 
@@ -77,7 +117,23 @@ fn photos_from_helper_result(
 fn cameras_from_helper_result(
     helper_result: Result<Vec<CameraDevice>, String>,
 ) -> Vec<CameraDevice> {
-    helper_result.unwrap_or_default()
+    match helper_result {
+        Ok(cameras) => {
+            if cameras.is_empty() {
+                eprintln!("[nikon-connector] camera scan completed with no Image Capture cameras");
+            } else {
+                eprintln!(
+                    "[nikon-connector] camera scan found {} Image Capture camera(s)",
+                    cameras.len()
+                );
+            }
+            cameras
+        }
+        Err(error) => {
+            eprintln!("[nikon-connector] camera scan failed: {error}");
+            Vec::new()
+        }
+    }
 }
 
 pub fn find_photo(photo_id: &str) -> Option<CameraPhoto> {
@@ -95,7 +151,9 @@ mod tests {
         assert!(photos_from_helper_result("z6iii", Ok(Vec::new())).is_some());
         assert!(photos_from_helper_result("z6iii", Err("helper unavailable".into())).is_some());
         assert!(photos_from_helper_result("real-camera", Ok(Vec::new())).is_none());
-        assert!(photos_from_helper_result("real-camera", Err("helper unavailable".into())).is_none());
+        assert!(
+            photos_from_helper_result("real-camera", Err("helper unavailable".into())).is_none()
+        );
     }
 
     #[test]

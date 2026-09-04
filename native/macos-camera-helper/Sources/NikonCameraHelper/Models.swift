@@ -29,6 +29,12 @@ struct CommandError: Codable {
     let error: String
 }
 
+struct CachedPhotoPreview: Codable {
+    let photoId: String
+    let previewUrl: String
+    let thumbnailUrl: String
+}
+
 struct ExportPhotosSummary: Codable {
     let copied: Int
     let skipped: Int

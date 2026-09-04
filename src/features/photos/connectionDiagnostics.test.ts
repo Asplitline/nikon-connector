@@ -69,6 +69,8 @@ describe("connection diagnostics", () => {
     expect(diagnostics.primaryAction.label).toBe("Scan again");
     expect(diagnostics.steps[0].state).toBe("attention");
     expect(diagnostics.steps[0].detail).toContain("USB-C");
+    expect(diagnostics.steps[0].detail.toLowerCase()).toContain("power the camera on first");
+    expect(diagnostics.steps[0].detail.toLowerCase()).toContain("keep it awake");
     expect(diagnostics.steps[1].state).toBe("pending");
     expect(diagnostics.steps[1].detail).toContain("Camera > Nikon Connector");
     expect(diagnostics.steps[1].action?.kind).toBe("open_camera_privacy");
@@ -114,6 +116,8 @@ describe("connection diagnostics", () => {
     expect(diagnostics.steps[2].state).toBe("complete");
     expect(diagnostics.steps[3].state).toBe("attention");
     expect(diagnostics.steps[3].detail).toContain("memory card");
+    expect(diagnostics.steps[3].detail).toContain("camera stays powered on");
+    expect(diagnostics.steps[3].detail).toContain("quit Image Capture before scanning again");
   });
 
   it("labels mock data as demo mode instead of a real USB connection", () => {

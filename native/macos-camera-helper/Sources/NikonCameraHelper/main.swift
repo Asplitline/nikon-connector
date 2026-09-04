@@ -16,6 +16,10 @@ do {
         writeJSON(ImageCaptureCameraStore().listCameras(timeout: 3.0))
     case let .listPhotos(cameraId, cacheDir):
         writeJSON(ImageCaptureCameraStore().listPhotos(cameraId: cameraId, cacheDir: cacheDir, timeout: 8.0))
+    case let .cachePhotoPreview(cameraId, photoId, cacheDir):
+        writeJSON(ImageCaptureCameraStore().cachePhotoPreview(cameraId: cameraId, photoId: photoId, cacheDir: cacheDir, timeout: 8.0))
+    case let .cachePhotoPreviews(cameraId, photoIds, previewPhotoIds, cacheDir):
+        writeJSON(ImageCaptureCameraStore().cachePhotoPreviews(cameraId: cameraId, photoIds: photoIds, previewPhotoIds: previewPhotoIds, cacheDir: cacheDir, timeout: 8.0))
     case let .exportPhotos(cameraId, destinationDir, photoIds):
         writeJSON(ImageCaptureCameraStore().exportPhotos(cameraId: cameraId, destinationDir: destinationDir, photoIds: photoIds, timeout: 30.0))
     case .setRating:

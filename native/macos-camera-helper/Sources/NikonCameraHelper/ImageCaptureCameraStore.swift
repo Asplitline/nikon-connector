@@ -10,10 +10,11 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
     private var downloadError: Error?
 
     func listCameras(timeout: TimeInterval) -> [CameraDevice] {
+        log("list-cameras started timeout=\(timeout)s")
         startBrowser(timeout: timeout)
         defer { stopBrowser() }
 
-        return cameraDevices
+        let cameras = cameraDevices
             .map { device in
                 CameraDevice(
                     id: device.persistentIDString ?? device.uuidString ?? device.name ?? "Nikon Camera",
@@ -25,13 +26,20 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             .sorted { lhs, rhs in
                 isNikonOrZ6(lhs) && !isNikonOrZ6(rhs)
             }
+        log("list-cameras finished count=\(cameras.count)")
+        for camera in cameras {
+            log("camera id=\(camera.id) name=\(camera.name) model=\(camera.model) connection=\(camera.connection)")
+        }
+        return cameras
     }
 
     func listPhotos(cameraId: String, cacheDir: String, timeout: TimeInterval) -> [CameraPhoto] {
+        log("list-photos started cameraId=\(cameraId) cacheDir=\(cacheDir) timeout=\(timeout)s")
         startBrowser(timeout: timeout)
         defer { stopBrowser() }
 
         guard let camera = cameraDevices.first(where: { cameraIdentifier(for: $0) == cameraId }) else {
+            log("list-photos camera not found cameraId=\(cameraId) available=\(cameraDevices.map { cameraIdentifier(for: $0) })")
             return []
         }
 
@@ -40,26 +48,103 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         camera.requestOpenSession()
 
         let deadline = Date().addingTimeInterval(timeout)
-        while !contentCatalogFinished && Date() < deadline {
+        while !contentCatalogFinished && !hasReadableItems(camera) && Date() < deadline {
             RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
         }
 
         let cacheURL = URL(fileURLWithPath: cacheDir, isDirectory: true)
-        let files = cameraFiles(in: camera.contents ?? [])
+        let items = readableItems(for: camera)
+        let files = cameraFiles(in: items)
+        log("list-photos catalogFinished=\(contentCatalogFinished) contentItems=\((camera.contents ?? []).count) mediaFiles=\((camera.mediaFiles ?? []).count) supportedFiles=\(files.count)")
+        logCameraState(camera, context: "list-photos-after-catalog")
         let cachedImages = cacheImages(
             for: files,
             cameraId: cameraId,
             in: cacheURL,
+            previewPhotoIds: [],
             timeout: timeout
         )
         let photos = flatten(
-            items: camera.contents ?? [],
+            items: items,
             cameraId: cameraId,
             cachedImages: cachedImages
         )
         camera.requestCloseSession()
         camera.delegate = nil
+        log("list-photos finished photoCount=\(photos.count)")
         return photos
+    }
+
+    func cachePhotoPreview(
+        cameraId: String,
+        photoId: String,
+        cacheDir: String,
+        timeout: TimeInterval
+    ) -> CachedPhotoPreview {
+        cachePhotoPreviews(
+            cameraId: cameraId,
+            photoIds: [photoId],
+            previewPhotoIds: [photoId],
+            cacheDir: cacheDir,
+            timeout: timeout
+        ).first ?? CachedPhotoPreview(photoId: photoId, previewUrl: "", thumbnailUrl: "")
+    }
+
+    func cachePhotoPreviews(
+        cameraId: String,
+        photoIds: [String],
+        previewPhotoIds: [String],
+        cacheDir: String,
+        timeout: TimeInterval
+    ) -> [CachedPhotoPreview] {
+        log("cache-photo-previews started cameraId=\(cameraId) photoIds=\(photoIds.count) previewPhotoIds=\(previewPhotoIds.count) cacheDir=\(cacheDir) timeout=\(timeout)s")
+        startBrowser(timeout: timeout)
+        defer { stopBrowser() }
+
+        guard let camera = cameraDevices.first(where: { cameraIdentifier(for: $0) == cameraId }) else {
+            log("cache-photo-previews camera not found cameraId=\(cameraId)")
+            return photoIds.map { CachedPhotoPreview(photoId: $0, previewUrl: "", thumbnailUrl: "") }
+        }
+
+        contentCatalogFinished = false
+        camera.delegate = self
+        camera.requestOpenSession()
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while !contentCatalogFinished && !hasReadableItems(camera) && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
+        }
+
+        let items = readableItems(for: camera)
+        let requestedIds = Set(photoIds)
+        let files = cameraFiles(in: items).filter { requestedIds.contains(photoIdentifier(for: $0, cameraId: cameraId)) }
+        let filesByPhotoId = Dictionary(uniqueKeysWithValues: files.map { (photoIdentifier(for: $0, cameraId: cameraId), $0) })
+
+        for photoId in photoIds where filesByPhotoId[photoId] == nil {
+            log("cache-photo-previews photo not found photoId=\(photoId)")
+        }
+
+        let cacheURL = URL(fileURLWithPath: cacheDir, isDirectory: true)
+        let cachedImages = cacheImages(
+            for: files,
+            cameraId: cameraId,
+            in: cacheURL,
+            previewPhotoIds: Set(previewPhotoIds),
+            timeout: timeout
+        )
+        camera.requestCloseSession()
+        camera.delegate = nil
+        let previews = photoIds.map { photoId in
+            let file = filesByPhotoId[photoId]
+            let cachedImage = file.map { cachedImages[ObjectIdentifier($0)] } ?? nil
+            return CachedPhotoPreview(
+                photoId: photoId,
+                previewUrl: cachedImage?.previewPath ?? "",
+                thumbnailUrl: cachedImage?.thumbnailPath ?? ""
+            )
+        }
+        log("cache-photo-previews finished requested=\(photoIds.count) found=\(files.count) cached=\(previews.filter { !$0.previewUrl.isEmpty || !$0.thumbnailUrl.isEmpty }.count)")
+        return previews
     }
 
     func exportPhotos(
@@ -72,10 +157,12 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             return ExportPhotosSummary(copied: 0, skipped: 0, failed: 0)
         }
 
+        log("export-photos started cameraId=\(cameraId) requested=\(photoIds.count) destinationDir=\(destinationDir) timeout=\(timeout)s")
         startBrowser(timeout: timeout)
         defer { stopBrowser() }
 
         guard let camera = cameraDevices.first(where: { cameraIdentifier(for: $0) == cameraId }) else {
+            log("export-photos camera not found cameraId=\(cameraId)")
             return ExportPhotosSummary(copied: 0, skipped: 0, failed: photoIds.count)
         }
 
@@ -84,15 +171,19 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         camera.requestOpenSession()
 
         let deadline = Date().addingTimeInterval(timeout)
-        while !contentCatalogFinished && Date() < deadline {
+        while !contentCatalogFinished && !hasReadableItems(camera) && Date() < deadline {
             RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
         }
+        let items = readableItems(for: camera)
+        log("export-photos catalogFinished=\(contentCatalogFinished) contentItems=\((camera.contents ?? []).count) mediaFiles=\((camera.mediaFiles ?? []).count)")
+        logCameraState(camera, context: "export-photos-after-catalog")
 
         let destinationURL = URL(fileURLWithPath: destinationDir, isDirectory: true)
         guard (try? FileManager.default.createDirectory(
             at: destinationURL,
             withIntermediateDirectories: true
         )) != nil else {
+            log("export-photos failed to create destinationDir=\(destinationDir)")
             camera.requestCloseSession()
             camera.delegate = nil
             return ExportPhotosSummary(copied: 0, skipped: 0, failed: photoIds.count)
@@ -100,7 +191,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
 
         let requestedIds = Set(photoIds)
         let filesById = Dictionary(
-            uniqueKeysWithValues: cameraFiles(in: camera.contents ?? []).map { file in
+            uniqueKeysWithValues: cameraFiles(in: items).map { file in
                 (photoIdentifier(for: file, cameraId: cameraId), file)
             }
         )
@@ -132,31 +223,47 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
 
         camera.requestCloseSession()
         camera.delegate = nil
+        log("export-photos finished copied=\(copied) skipped=\(skipped) failed=\(failed)")
         return ExportPhotosSummary(copied: copied, skipped: skipped, failed: failed)
     }
 
     func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
         if let camera = device as? ICCameraDevice {
+            camera.delegate = self
             cameraDevices.append(camera)
+            log("device added name=\(camera.name ?? "Unknown") model=\(camera.productKind ?? "Unknown") id=\(cameraIdentifier(for: camera)) moreComing=\(moreComing)")
+            logCameraState(camera, context: "device-added")
+        } else {
+            log("non-camera device ignored type=\(String(describing: type(of: device))) name=\(device.name ?? "Unknown") moreComing=\(moreComing)")
         }
 
         if !moreComing {
             initialScanFinished = true
+            log("initial scan marked finished devices=\(cameraDevices.count)")
         }
     }
 
     func deviceBrowser(_ browser: ICDeviceBrowser, didRemove device: ICDevice, moreGoing: Bool) {
         guard let camera = device as? ICCameraDevice else { return }
         cameraDevices.removeAll { $0 === camera }
+        log("device removed name=\(camera.name ?? "Unknown") id=\(cameraIdentifier(for: camera)) moreGoing=\(moreGoing)")
     }
 
     func deviceDidBecomeReady(withCompleteContentCatalog device: ICCameraDevice) {
         contentCatalogFinished = true
+        log("content catalog ready name=\(device.name ?? "Unknown") items=\((device.contents ?? []).count)")
     }
 
-    func cameraDevice(_ camera: ICCameraDevice, didAdd items: [ICCameraItem]) {}
+    func cameraDevice(_ camera: ICCameraDevice, didAdd items: [ICCameraItem]) {
+        log("camera didAdd items name=\(camera.name ?? "Unknown") count=\(items.count)")
+        for item in items.prefix(20) {
+            log("item added \(itemDescription(item))")
+        }
+    }
 
-    func cameraDevice(_ camera: ICCameraDevice, didRemove items: [ICCameraItem]) {}
+    func cameraDevice(_ camera: ICCameraDevice, didRemove items: [ICCameraItem]) {
+        log("camera didRemove items name=\(camera.name ?? "Unknown") count=\(items.count)")
+    }
 
     func cameraDevice(
         _ camera: ICCameraDevice,
@@ -194,14 +301,27 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
 
     func device(_ device: ICDevice, didOpenSessionWithError error: Error?) {
         if error != nil {
+            log("open session failed name=\(device.name ?? "Unknown") error=\(String(describing: error))")
             contentCatalogFinished = true
+        } else {
+            log("open session succeeded name=\(device.name ?? "Unknown")")
+        }
+        if let camera = device as? ICCameraDevice {
+            logCameraState(camera, context: "session-opened")
         }
     }
 
-    func device(_ device: ICDevice, didCloseSessionWithError error: Error?) {}
+    func device(_ device: ICDevice, didCloseSessionWithError error: Error?) {
+        if let error {
+            log("close session failed name=\(device.name ?? "Unknown") error=\(error)")
+        } else {
+            log("close session succeeded name=\(device.name ?? "Unknown")")
+        }
+    }
 
     func didRemove(_ device: ICDevice) {
         contentCatalogFinished = true
+        log("device removed during session name=\(device.name ?? "Unknown")")
     }
 
     private func startBrowser(timeout: TimeInterval) {
@@ -209,17 +329,22 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         initialScanFinished = false
         browser.delegate = self
         browser.browsedDeviceTypeMask = .camera
+        let start = Date()
+        log("browser starting mask=camera timeout=\(timeout)s")
         browser.start()
 
         let deadline = Date().addingTimeInterval(timeout)
         while !initialScanFinished && Date() < deadline {
             RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
         }
+        let elapsed = Date().timeIntervalSince(start)
+        log("browser scan complete initialScanFinished=\(initialScanFinished) devices=\(cameraDevices.count) elapsed=\(String(format: "%.2f", elapsed))s")
     }
 
     private func stopBrowser() {
         browser.stop()
         browser.delegate = nil
+        log("browser stopped")
     }
 
     private func flatten(
@@ -282,10 +407,53 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         }
     }
 
+    private func readableItems(for camera: ICCameraDevice) -> [ICCameraItem] {
+        let contentItems = camera.contents ?? []
+        if !contentItems.isEmpty {
+            return contentItems
+        }
+
+        let mediaItems = camera.mediaFiles ?? []
+        if !mediaItems.isEmpty {
+            log("using mediaFiles fallback because contents is empty")
+        }
+        return mediaItems
+    }
+
+    private func hasReadableItems(_ camera: ICCameraDevice) -> Bool {
+        !(camera.contents ?? []).isEmpty || !(camera.mediaFiles ?? []).isEmpty
+    }
+
+    private func itemDescription(_ item: ICCameraItem) -> String {
+        if let folder = item as? ICCameraFolder {
+            return "folder name=\(folder.name ?? "Unknown") children=\((folder.contents ?? []).count)"
+        }
+
+        if let file = item as? ICCameraFile {
+            return "file name=\(file.name ?? "Unknown") size=\(file.fileSize) width=\(file.width) height=\(file.height) handle=\(file.ptpObjectHandle)"
+        }
+
+        return "item type=\(String(describing: type(of: item))) name=\(item.name ?? "Unknown")"
+    }
+
+    private func logCameraState(_ camera: ICCameraDevice, context: String) {
+        let capabilities = camera.capabilities.isEmpty
+            ? "none"
+            : camera.capabilities.joined(separator: ",")
+        log(
+            "\(context) state name=\(camera.name ?? "Unknown") transport=\(camera.transportType ?? "unknown") " +
+            "location=\(camera.locationDescription ?? "unknown") module=\(camera.modulePath) " +
+            "openSession=\(camera.hasOpenSession) locked=\(camera.isLocked) ejectable=\(camera.isEjectable) " +
+            "appleAccessRestricted=\(camera.isAccessRestrictedAppleDevice) mountPoint=\(camera.mountPoint ?? "none") " +
+            "contents=\((camera.contents ?? []).count) mediaFiles=\((camera.mediaFiles ?? []).count) capabilities=\(capabilities)"
+        )
+    }
+
     private func cacheImages(
         for files: [ICCameraFile],
         cameraId: String,
         in cacheURL: URL,
+        previewPhotoIds: Set<String>,
         timeout: TimeInterval
     ) -> [ObjectIdentifier: CachedImagePaths] {
         guard (try? FileManager.default.createDirectory(
@@ -299,7 +467,9 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         let lock = NSLock()
         var paths: [ObjectIdentifier: CachedImagePaths] = [:]
 
-        for file in files {
+        let filesToCache = Array(files.prefix(maxInitialCachedFiles))
+
+        for file in filesToCache {
             guard let fileName = file.name else { continue }
             let identifier = file.ptpObjectHandle == 0 ? fileName : String(file.ptpObjectHandle)
             let cacheKey = safeFileComponent("\(cameraId)-\(identifier)")
@@ -326,7 +496,8 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
                 }
             }
 
-            if canRequestPreview(for: fileName) {
+            let photoId = photoIdentifier(for: file, cameraId: cameraId)
+            if previewPhotoIds.contains(photoId) && canRequestPreview(for: fileName) {
                 group.enter()
                 file.requestThumbnailData(options: [
                     .imageSourceThumbnailMaxPixelSize: NSNumber(value: 2400)
@@ -349,6 +520,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         }
 
         _ = group.wait(timeout: .now() + timeout)
+        log("cache-images finished files=\(files.count) requested=\(filesToCache.count) previewRequests=\(previewPhotoIds.count) cachedEntries=\(paths.count)")
         return paths
     }
 
@@ -400,6 +572,10 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         return downloadFinished && downloadError == nil
     }
 
+    private func log(_ message: String) {
+        fputs("[nikon-camera-helper] \(message)\n", stderr)
+    }
+
     private func photoIdentifier(for file: ICCameraFile, cameraId: String) -> String {
         let objectHandle = file.ptpObjectHandle == 0 ? nil : String(file.ptpObjectHandle)
         let identifier = objectHandle ?? file.name ?? "photo"
@@ -411,6 +587,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
     }
 
     private let supportedExtensions: Set<String> = ["jpg", "jpeg", "nef", "nrw", "heif", "hif"]
+    private let maxInitialCachedFiles = 80
 
     private func isNikonOrZ6(_ camera: CameraDevice) -> Bool {
         [camera.name, camera.model].contains { value in

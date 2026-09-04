@@ -31,6 +31,14 @@ pub struct CameraPhoto {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CachedPhotoPreview {
+    pub photo_id: String,
+    pub preview_url: String,
+    pub thumbnail_url: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExportPhotosSummary {
     pub copied: u32,
     pub skipped: u32,

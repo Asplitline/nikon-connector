@@ -6,6 +6,7 @@ import {
   selectPhoto,
   selectPhotoByOffset,
   selectPhotoEdge,
+  updatePhotoPreview,
   updatePhotoRating,
 } from "./catalog";
 import type { CameraPhoto } from "./types";
@@ -59,6 +60,27 @@ describe("photo catalog", () => {
     expect(getSelectedPhoto(catalog)?.fileName).toBe("DSC_1001.JPG");
   });
 
+  it("selects the first previewable photo by default", () => {
+    const catalog = createPhotoCatalog([
+      {
+        ...photos[0],
+        id: "dsc-1001-raw",
+        fileName: "DSC_1001.NEF",
+        previewUrl: "",
+        thumbnailUrl: "",
+      },
+      {
+        ...photos[1],
+        id: "dsc-1002-preview",
+        fileName: "DSC_1002.JPG",
+        previewUrl: "",
+        thumbnailUrl: "mock://thumb/dsc-1002",
+      },
+    ]);
+
+    expect(catalog.selectedPhotoId).toBe("dsc-1002-preview");
+  });
+
   it("keeps the current selection when selecting an unknown photo", () => {
     const catalog = selectPhoto(createPhotoCatalog(photos), "missing");
 
@@ -75,6 +97,20 @@ describe("photo catalog", () => {
       0,
     );
     expect(catalog.selectedPhotoId).toBe("dsc-1001");
+  });
+
+  it("updates one photo preview without changing selection", () => {
+    const catalog = updatePhotoPreview(createPhotoCatalog(photos), {
+      photoId: "dsc-1002",
+      previewUrl: "/tmp/dsc-1002-preview.jpg",
+      thumbnailUrl: "/tmp/dsc-1002-thumb.jpg",
+    });
+
+    expect(catalog.selectedPhotoId).toBe("dsc-1001");
+    expect(catalog.photos.find((photo) => photo.id === "dsc-1002")?.previewUrl)
+      .toBe("/tmp/dsc-1002-preview.jpg");
+    expect(catalog.photos.find((photo) => photo.id === "dsc-1002")?.thumbnailUrl)
+      .toBe("/tmp/dsc-1002-thumb.jpg");
   });
 
   it("selects photos by offset and clamps at catalog edges", () => {
