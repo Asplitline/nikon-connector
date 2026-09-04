@@ -22,6 +22,24 @@ export function createPhotoCatalog(photos: CameraPhoto[]): PhotoCatalogState {
   };
 }
 
+// 渐进式枚举时用新一批照片替换目录：已有选中项若仍存在就保留，
+// 避免每来一批就把用户正在看的照片跳走
+export function replacePhotos(
+  state: PhotoCatalogState,
+  photos: CameraPhoto[],
+): PhotoCatalogState {
+  const keepsSelection =
+    state.selectedPhotoId !== null &&
+    photos.some((photo) => photo.id === state.selectedPhotoId);
+
+  return {
+    photos,
+    selectedPhotoId: keepsSelection
+      ? state.selectedPhotoId
+      : firstPreviewablePhoto(photos)?.id ?? photos[0]?.id ?? null,
+  };
+}
+
 export function selectPhoto(
   state: PhotoCatalogState,
   photoId: string,

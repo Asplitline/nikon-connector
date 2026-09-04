@@ -34,6 +34,27 @@
   --color-line-soft: var(--app-line-soft);
 }
 
+/* 三处大面积渐变背景。注册为 --background-image-* 后可用 bg-shell / bg-stage /
+   bg-stage-empty 命名工具类，避免在 JSX 里塞进整段 gradient 字面量 */
+@theme inline {
+  --background-image-shell: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--app-panel) 84%, var(--app-canvas)) 0%,
+    var(--app-canvas) 58%
+  );
+  --background-image-stage-lit: radial-gradient(
+      circle at 50% 38%,
+      color-mix(in oklch, var(--app-stage-muted) 13%, transparent) 0%,
+      transparent 38%
+    ),
+    linear-gradient(180deg, oklch(0.215 0.012 72), var(--app-stage));
+  --background-image-stage-empty: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--app-surface) 88%, var(--app-canvas)) 0%,
+    var(--app-canvas) 100%
+  );
+}
+
 /* 设计稿自带的细粒度字号与可变字重刻度。刻意用 ui-* 命名，
    避免覆盖项目已在使用的 Tailwind 内置 text-sm / font-semibold 等。
    有了它们，JSX 里不必散落 text-[0.72rem]、font-[760] 这类 arbitrary value */
@@ -157,32 +178,6 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-.app-shell {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--app-panel) 84%, var(--app-canvas)) 0%,
-      var(--app-canvas) 58%
-    );
-}
-
-.side-panel,
-.details-panel,
-.filmstrip,
-.top-bar {
-  backdrop-filter: saturate(1.05);
-}
-
-.app-frame,
-.workspace,
-.review-area,
-.side-panel,
-.details-panel,
-.top-bar,
-.filmstrip {
-  min-width: 0;
-}
-
 @utility section-label {
   font-size: 0.76rem;
   font-weight: 700;
@@ -192,44 +187,6 @@ button {
   color: var(--app-muted);
 }
 
-.photo-stage {
-  background:
-    radial-gradient(
-      circle at 50% 38%,
-      color-mix(in oklch, var(--app-stage-muted) 13%, transparent) 0%,
-      transparent 38%
-    ),
-    linear-gradient(180deg, oklch(0.215 0.012 72), var(--app-stage));
-}
-
-.photo-stage.empty {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--app-surface) 88%, var(--app-canvas)) 0%,
-      var(--app-canvas) 100%
-    );
-}
-
-.review-image {
-  display: block;
-  height: auto;
-  min-height: 0;
-  min-width: 0;
-  box-shadow:
-    0 24px 88px color-mix(in oklch, var(--app-ink) 28%, transparent),
-    0 2px 10px color-mix(in oklch, var(--app-ink) 18%, transparent);
-}
-
-.review-image.scaled {
-  max-height: none;
-  max-width: none;
-  transform-origin: center;
-  transition: transform 180ms ease;
-}
-
-.rating-star,
-.clear-rating,
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -1,19 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { type Locale, t } from "../../i18n";
 import { writeAppLog } from "../../lib/appApi";
 import {
   cachePhotoPreviews,
   exportPhotos,
   listCameras,
-  listPhotos,
+  type PhotoStreamHandle,
   setPhotoRating,
+  streamPhotos,
 } from "../../lib/cameraApi";
 import { createSingleFlight } from "../../lib/singleFlight";
 import {
   createPhotoCatalog,
+  replacePhotos,
   updatePhotoPreview,
   updatePhotoRating,
 } from "../photos/catalog";
+import { createPhotoStream, mergePhotoBatch } from "../photos/photoStream";
 import {
   applyLocalRatings,
   isLocalOnlyRatingError,
@@ -75,6 +78,7 @@ export function useCameraSession(locale: Locale): CameraSession {
   const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
   const inFlightPreviewIdsRef = useRef(new Set<string>());
   const previewGuardRef = useRef(createGenerationGuard());
+  const photoStreamRef = useRef<PhotoStreamHandle | null>(null);
 
   const tr = useCallback(
     (key: Parameters<typeof t>[0], values?: Parameters<typeof t>[1]) =>
@@ -98,12 +102,34 @@ export function useCameraSession(locale: Locale): CameraSession {
       }
 
       const nextCamera = nextCameras[0];
-      const nextPhotos = applyLocalRatings(
-        await listPhotos(nextCamera.id),
-        readLocalRatings(window.localStorage, nextCamera.id),
-      );
+      const ratings = readLocalRatings(window.localStorage, nextCamera.id);
+
+      // 上一次枚举的订阅要先撤掉，否则旧相机的批次会混进新目录
+      photoStreamRef.current?.cancel();
+      photoStreamRef.current = null;
       setActiveCamera(nextCamera);
-      setCatalog(createPhotoCatalog(nextPhotos));
+      setCatalog(createPhotoCatalog([]));
+
+      // 渐进式接收：每批到达即合并渲染，不等整卡枚举完成
+      let stream = createPhotoStream();
+      const handle = await streamPhotos(nextCamera.id, (batch) => {
+        stream = mergePhotoBatch(stream, {
+          done: batch.done,
+          photos: applyLocalRatings(batch.photos, ratings),
+        });
+        setCatalog((current) => replacePhotos(current, stream.photos));
+
+        if (batch.done) {
+          setStatus(
+            tr("status.mountedPhotos", {
+              camera: nextCamera.name,
+              count: stream.photos.length,
+            }),
+          );
+        }
+      });
+      photoStreamRef.current = handle;
+
       if (nextCamera.connection === "mock") {
         setConnectionState("not_connected");
         setStatus(tr("status.demo"));
@@ -113,7 +139,7 @@ export function useCameraSession(locale: Locale): CameraSession {
       setStatus(
         tr("status.mountedPhotos", {
           camera: nextCamera.name,
-          count: nextPhotos.length,
+          count: handle.total,
         }),
       );
     } catch (error) {
@@ -128,14 +154,31 @@ export function useCameraSession(locale: Locale): CameraSession {
     }
   }, [tr]);
 
-  const loadCamera = useMemo(
-    () => createSingleFlight(runCameraLoad),
-    [runCameraLoad],
-  );
+  // singleFlight 折叠并发的重复扫描。runCameraLoad 会读 ref，所以包装实例
+  // 放在 ref 里而不是 useMemo 里创建（render 阶段不碰 ref）。
+  const loadCameraRef = useRef<(() => Promise<void>) | null>(null);
+  const loadCamera = useCallback(async () => {
+    loadCameraRef.current ??= createSingleFlight(runCameraLoad);
+    await loadCameraRef.current();
+  }, [runCameraLoad]);
+
+  // runCameraLoad 变了（locale 切换）就丢弃旧的折叠器
+  useEffect(() => {
+    loadCameraRef.current = null;
+  }, [runCameraLoad]);
 
   useEffect(() => {
     void Promise.resolve().then(loadCamera);
   }, [loadCamera]);
+
+  // 卸载时撤掉照片流订阅，避免 setState 打到已卸载的组件上
+  useEffect(
+    () => () => {
+      photoStreamRef.current?.cancel();
+      photoStreamRef.current = null;
+    },
+    [],
+  );
 
   // 真正发起一批预览请求。经调度器防抖后调用，同一时刻只会有一批在途。
   const flushPreviewBatch = useCallback(

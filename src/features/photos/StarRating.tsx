@@ -1,4 +1,5 @@
 import type { Rating } from "./types";
+import { starButtonClass } from "./photoStyles";
 
 interface StarRatingProps {
   value: Rating;
@@ -34,15 +35,7 @@ export function StarRating({
 
         return (
           <button
-            className={[
-              "grid h-10 w-10 place-items-center rounded-md text-[20px]",
-              "transition-[background-color,border-color,color,opacity,transform,box-shadow] duration-[180ms] ease-[ease] active:translate-y-px",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
-              isActive
-                ? "text-star"
-                : "text-muted hover:text-ink",
-              disabled ? "cursor-not-allowed opacity-50" : "hover:bg-hover",
-            ].join(" ")}
+            className={starButtonClass(isActive, disabled)}
             disabled={disabled}
             key={rating}
             onClick={() => onChange(nextRating)}

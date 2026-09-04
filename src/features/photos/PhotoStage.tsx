@@ -6,6 +6,7 @@ import type { CameraPhoto } from "./types";
 import { computeWindowRange, scrollOffsetForIndex } from "./windowing";
 import type { PhotoZoomState, ZoomAction } from "./zoom";
 import { iconButtonClass, zoomTextButtonClass } from "../app/buttonStyles";
+import { filmstripItemClass, reviewImageClass } from "./photoStyles";
 
 // 照片舞台：缩放工具栏 + 主预览图。空态由调用方以 children 传入
 export function PhotoStage({
@@ -65,10 +66,7 @@ export function PhotoStage({
       {sourceUrl ? (
         <img
           alt={photo.fileName}
-          className={[
-            "review-image rounded-md object-contain max-sm:max-h-[40vh]",
-            zoom.mode === "fit" ? "max-h-full max-w-full" : "scaled",
-          ].join(" ")}
+          className={reviewImageClass(zoom.mode === "fit")}
           onError={(event) => {
             void writeAppLog(
               "warn",
@@ -198,15 +196,7 @@ export function Filmstrip({
 
           return (
             <button
-              className={[
-                "group relative h-[116px] w-[148px] shrink-0 overflow-hidden rounded-lg border bg-surface text-left max-sm:h-[108px] max-sm:w-[136px]",
-                "shadow-[0_1px_0_color-mix(in_oklch,var(--app-ink)_4%,transparent)]",
-                "transition-[background-color,border-color,color,opacity,transform,box-shadow] duration-[180ms] ease-[ease] hover:-translate-y-px active:translate-y-px",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
-                isSelected
-                  ? "border-ink shadow-[0_0_0_2px_var(--app-surface),0_0_0_4px_var(--app-ink)]"
-                  : "border-line hover:border-muted",
-              ].join(" ")}
+              className={filmstripItemClass(isSelected)}
               aria-current={isSelected ? "true" : undefined}
               data-filmstrip-item=""
               key={photo.id}

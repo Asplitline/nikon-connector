@@ -166,10 +166,10 @@ function App() {
 
   return (
     <main
-      className="app-shell h-screen overflow-hidden bg-canvas text-ink max-sm:h-auto max-sm:min-h-screen max-sm:overflow-auto"
+      className="bg-shell h-screen min-w-0 overflow-hidden bg-canvas text-ink max-sm:h-auto max-sm:min-h-screen max-sm:overflow-auto"
       data-theme={theme}
     >
-      <div className="app-frame grid h-full min-h-0 grid-cols-[248px_minmax(0,1fr)] max-nav:grid-cols-1 max-nav:grid-rows-[auto_minmax(0,1fr)] max-sm:min-h-0">
+      <div className="grid h-full min-h-0 min-w-0 grid-cols-[248px_minmax(0,1fr)] max-nav:grid-cols-1 max-nav:grid-rows-[auto_minmax(0,1fr)] max-sm:min-h-0">
         <SidePanel
           activeCamera={camera.activeCamera}
           catalogControls={catalogControls}

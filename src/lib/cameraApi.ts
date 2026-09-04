@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { CameraDevice, CameraPhoto, Rating } from "../features/photos/types";
 
 const canUseTauri = () => "__TAURI_INTERNALS__" in window;
@@ -29,12 +30,60 @@ export async function listCameras(): Promise<CameraDevice[]> {
   return invoke<CameraDevice[]>("list_cameras");
 }
 
-export async function listPhotos(cameraId: string): Promise<CameraPhoto[]> {
+export interface PhotoBatchEvent {
+  cameraId: string;
+  photos: CameraPhoto[];
+  done: boolean;
+}
+
+export interface PhotoStreamHandle {
+  // 后端报的总数，用于显示进度；照片本体经 onBatch 分批到达
+  total: number;
+  // 取消订阅。切相机或组件卸载时必须调用
+  cancel: () => void;
+}
+
+// 渐进式枚举：命令只触发，照片经 photos:batch 事件分批到达，
+// 首屏不必等整卡枚举完成。浏览器（无 Tauri）下用 mock 分批模拟同样的时序。
+export async function streamPhotos(
+  cameraId: string,
+  onBatch: (batch: PhotoBatchEvent) => void,
+): Promise<PhotoStreamHandle> {
   if (!canUseTauri()) {
-    return mockPhotos.filter((photo) => photo.cameraId === cameraId);
+    const photos = mockPhotos.filter((photo) => photo.cameraId === cameraId);
+    let cancelled = false;
+
+    // 用微任务投递，保持与 Tauri 路径一致的「先返回句柄、后到数据」时序
+    void Promise.resolve().then(() => {
+      if (!cancelled) {
+        onBatch({ cameraId, done: true, photos });
+      }
+    });
+
+    return {
+      total: photos.length,
+      cancel: () => {
+        cancelled = true;
+      },
+    };
   }
 
-  return invoke<CameraPhoto[]>("list_photos", { cameraId });
+  // 先订阅再触发，避免第一批事件比监听器早到而丢失
+  const unlisten = await listen<PhotoBatchEvent>("photos:batch", (event) => {
+    if (event.payload.cameraId === cameraId) {
+      onBatch(event.payload);
+    }
+  });
+
+  try {
+    const started = await invoke<{ cameraId: string; total: number }>("list_photos", {
+      cameraId,
+    });
+    return { total: started.total, cancel: unlisten };
+  } catch (error) {
+    unlisten();
+    throw error;
+  }
 }
 
 export async function openImageCapture(): Promise<void> {

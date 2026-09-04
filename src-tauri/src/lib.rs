@@ -6,6 +6,7 @@ mod rating;
 use camera::{CachedPhotoPreview, CameraDevice, CameraPhoto, ExportPhotosSummary};
 use logging::{LogInfo, LogLevel};
 use serde::Serialize;
+use tauri::Emitter;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,8 +22,27 @@ fn list_cameras() -> Vec<CameraDevice> {
     camera::list_cameras()
 }
 
+// 渐进式投递：照片枚举完后分批 emit，前端边收边渲染，首屏不必等整批。
+// 命令本身立即返回总数，调用方靠 photos:batch / photos:done 事件收数据。
+const PHOTO_BATCH_SIZE: usize = 200;
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PhotoBatchEvent {
+    camera_id: String,
+    photos: Vec<CameraPhoto>,
+    done: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PhotoStreamStarted {
+    camera_id: String,
+    total: usize,
+}
+
 #[tauri::command]
-fn list_photos(app: tauri::AppHandle, camera_id: &str) -> Result<Vec<CameraPhoto>, String> {
+fn list_photos(app: tauri::AppHandle, camera_id: &str) -> Result<PhotoStreamStarted, String> {
     let _ = logging::write_client_log(
         &app,
         LogLevel::Info,
@@ -31,13 +51,47 @@ fn list_photos(app: tauri::AppHandle, camera_id: &str) -> Result<Vec<CameraPhoto
     );
     let cache_dir = camera::cache::photo_cache_dir(&app)?;
     let photos = camera::list_photos(camera_id, &cache_dir);
+    let total = photos.len();
     let _ = logging::write_client_log(
         &app,
         LogLevel::Info,
         "backend.list_photos",
-        &format!("listed {} photos for camera {camera_id}", photos.len()),
+        &format!("listed {total} photos for camera {camera_id}"),
     );
-    Ok(photos)
+
+    // 分批推送。空目录也要发一条 done，否则前端会一直停在加载态。
+    let camera_id = camera_id.to_string();
+    let emitter = app.clone();
+    let owned_camera_id = camera_id.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut sent = 0usize;
+
+        if total == 0 {
+            let _ = emitter.emit(
+                "photos:batch",
+                PhotoBatchEvent {
+                    camera_id: owned_camera_id,
+                    photos: Vec::new(),
+                    done: true,
+                },
+            );
+            return;
+        }
+
+        for chunk in photos.chunks(PHOTO_BATCH_SIZE) {
+            sent += chunk.len();
+            let _ = emitter.emit(
+                "photos:batch",
+                PhotoBatchEvent {
+                    camera_id: owned_camera_id.clone(),
+                    photos: chunk.to_vec(),
+                    done: sent >= total,
+                },
+            );
+        }
+    });
+
+    Ok(PhotoStreamStarted { camera_id, total })
 }
 
 #[tauri::command]
@@ -255,6 +309,12 @@ pub fn run() {
             set_photo_rating,
             write_client_log
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app, event| {
+            // 退出前收掉常驻 camera helper，否则会留下孤儿进程占着相机会话
+            if matches!(event, tauri::RunEvent::Exit) {
+                camera::shutdown_helper();
+            }
+        });
 }

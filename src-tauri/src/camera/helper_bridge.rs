@@ -1,29 +1,40 @@
 use std::{
     env,
     path::{Path, PathBuf},
-    process::Command,
+    sync::OnceLock,
     time::Instant,
 };
 
+use super::helper_daemon::{HelperDaemon, HelperRequest};
 use super::types::{CachedPhotoPreview, CameraDevice, CameraPhoto, ExportPhotosSummary};
 
+// 全进程一个常驻 helper：固定开销（设备扫描 + 打开会话 + 等目录，实测 3~8s）
+// 只在首次请求时付一次，之后每条请求只付真实数据传输的时间。
+fn daemon() -> &'static HelperDaemon {
+    static DAEMON: OnceLock<HelperDaemon> = OnceLock::new();
+    DAEMON.get_or_init(HelperDaemon::new)
+}
+
+pub fn shutdown() {
+    daemon().shutdown();
+}
+
 pub fn list_cameras() -> Result<Vec<CameraDevice>, String> {
-    run_helper(&["list-cameras"])
+    send("list-cameras", |id| {
+        serialize(HelperRequest::new(id, "list-cameras"))
+    })
 }
 
 #[allow(dead_code)]
 pub fn list_photos(camera_id: &str, cache_dir: &Path) -> Result<Vec<CameraPhoto>, String> {
-    let cache_dir = cache_dir
-        .to_str()
-        .ok_or_else(|| "Camera cache path is not valid UTF-8.".to_string())?;
+    let cache_dir = cache_dir_str(cache_dir)?;
 
-    run_helper(&[
-        "list-photos",
-        "--camera-id",
-        camera_id,
-        "--cache-dir",
-        cache_dir,
-    ])
+    send("list-photos", |id| {
+        let mut request = HelperRequest::new(id, "list-photos");
+        request.camera_id = Some(camera_id);
+        request.cache_dir = Some(cache_dir);
+        serialize(request)
+    })
 }
 
 pub fn cache_photo_previews(
@@ -32,27 +43,16 @@ pub fn cache_photo_previews(
     preview_photo_ids: &[String],
     cache_dir: &Path,
 ) -> Result<Vec<CachedPhotoPreview>, String> {
-    let cache_dir = cache_dir
-        .to_str()
-        .ok_or_else(|| "Camera cache path is not valid UTF-8.".to_string())?;
-    let mut args = vec![
-        "cache-photo-previews",
-        "--camera-id",
-        camera_id,
-        "--cache-dir",
-        cache_dir,
-    ];
+    let cache_dir = cache_dir_str(cache_dir)?;
 
-    for photo_id in photo_ids {
-        args.push("--photo-id");
-        args.push(photo_id);
-    }
-    for photo_id in preview_photo_ids {
-        args.push("--preview-photo-id");
-        args.push(photo_id);
-    }
-
-    run_helper(&args)
+    send("cache-photo-previews", |id| {
+        let mut request = HelperRequest::new(id, "cache-photo-previews");
+        request.camera_id = Some(camera_id);
+        request.cache_dir = Some(cache_dir);
+        request.photo_ids = Some(photo_ids);
+        request.preview_photo_ids = Some(preview_photo_ids);
+        serialize(request)
+    })
 }
 
 pub fn export_photos(
@@ -63,20 +63,43 @@ pub fn export_photos(
     let destination_dir = destination_dir
         .to_str()
         .ok_or_else(|| "Export destination path is not valid UTF-8.".to_string())?;
-    let mut args = vec![
-        "export-photos",
-        "--camera-id",
-        camera_id,
-        "--destination-dir",
-        destination_dir,
-    ];
 
-    for photo_id in photo_ids {
-        args.push("--photo-id");
-        args.push(photo_id);
-    }
+    send("export-photos", |id| {
+        let mut request = HelperRequest::new(id, "export-photos");
+        request.camera_id = Some(camera_id);
+        request.destination_dir = Some(destination_dir);
+        request.photo_ids = Some(photo_ids);
+        serialize(request)
+    })
+}
 
-    run_helper(&args)
+fn cache_dir_str(cache_dir: &Path) -> Result<&str, String> {
+    cache_dir
+        .to_str()
+        .ok_or_else(|| "Camera cache path is not valid UTF-8.".to_string())
+}
+
+fn serialize(request: HelperRequest<'_>) -> String {
+    // 请求结构固定可序列化；真出错也只能退化成一条必然被 helper 拒绝的空请求
+    serde_json::to_string(&request).unwrap_or_else(|_| "{}".to_string())
+}
+
+fn send<T>(label: &str, build: impl Fn(u64) -> String) -> Result<T, String>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let helper = helper_path()?;
+    let start = Instant::now();
+
+    let result = daemon().request::<T>(&helper, build);
+
+    eprintln!(
+        "[nikon-connector] helper cmd={label} elapsed_ms={} ok={}",
+        start.elapsed().as_millis(),
+        result.is_ok()
+    );
+
+    result
 }
 
 fn helper_path() -> Result<PathBuf, String> {
@@ -94,58 +117,4 @@ fn helper_path() -> Result<PathBuf, String> {
     }
 
     Err("nikon-camera-helper not found.".to_string())
-}
-
-fn run_helper<T>(args: &[&str]) -> Result<T, String>
-where
-    T: serde::de::DeserializeOwned,
-{
-    let helper = helper_path()?;
-    let start = Instant::now();
-    eprintln!(
-        "[nikon-connector] running helper path={} args={:?}",
-        helper.display(),
-        args
-    );
-    let output = Command::new(&helper)
-        .args(args)
-        .output()
-        .map_err(|error| format!("Failed to run nikon-camera-helper: {error}"))?;
-    let elapsed = start.elapsed();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-
-    eprintln!(
-        "[nikon-connector] helper finished status={} elapsed_ms={} stdout_bytes={} stderr_bytes={}",
-        output.status,
-        elapsed.as_millis(),
-        output.stdout.len(),
-        output.stderr.len()
-    );
-    if !stderr.is_empty() {
-        eprintln!("[nikon-connector] helper stderr:\n{stderr}");
-    }
-
-    if !output.status.success() {
-        return Err(if stderr.is_empty() {
-            format!("nikon-camera-helper exited with status {}.", output.status)
-        } else {
-            stderr
-        });
-    }
-
-    serde_json::from_slice(&output.stdout).map_err(|error| {
-        format!(
-            "Invalid nikon-camera-helper response: {error}. stdout={}",
-            truncate_for_log(&stdout, 500)
-        )
-    })
-}
-
-fn truncate_for_log(value: &str, max_chars: usize) -> String {
-    if value.chars().count() <= max_chars {
-        return value.to_string();
-    }
-
-    format!("{}...", value.chars().take(max_chars).collect::<String>())
 }

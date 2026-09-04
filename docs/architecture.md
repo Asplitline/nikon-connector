@@ -11,9 +11,12 @@ on the connected camera/card and apply official 0-5 star ratings.
 - React 19 + TypeScript + Vite frontend
 - Tailwind CSS for styling
 - Rust commands for native integration
-- macOS ImageCaptureCore helper bridge for camera/card enumeration and local
-  thumbnail and preview caching, with mock fallback when the helper is
-  unavailable or reports no cameras
+- macOS ImageCaptureCore helper running as a persistent NDJSON daemon for
+  camera/card enumeration and local thumbnail and preview caching, with mock
+  fallback when the helper is unavailable or reports no cameras. The daemon
+  holds one long-lived browser and camera session so the fixed
+  ImageCaptureCore cost is paid once per app session, not once per request;
+  all camera work is serialized because PTP sessions cannot run concurrently
 - Optional future gphoto2/libgphoto2 PTP backend for Nikon cameras, gated behind
   `NIKON_CAMERA_BACKEND=gphoto2` until real-device app performance is verified
 - Nikon Remote Module SDK 2.0.0 adapter shell for deferred rating write-back

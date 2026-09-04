@@ -7,6 +7,7 @@ import { formatConnection } from "../photos/labels";
 import { ReviewControls } from "../photos/ReviewControls";
 import type { ShootingReview } from "../photos/shootingReview";
 import { ShootingReviewPanel } from "../photos/ShootingReviewPanel";
+import { StatusDot } from "./StatusDot";
 import type { CameraConnectionState, CameraDevice } from "../photos/types";
 import type { CatalogControls, ExportControls, LibraryStats } from "./uiTypes";
 import type { Locale, t as translate } from "../../i18n";
@@ -49,7 +50,7 @@ export function SidePanel({
   ) => string;
 }) {
   return (
-    <aside className="side-panel min-h-0 overflow-y-auto border-r border-line bg-panel px-5 py-5 max-nav:grid max-nav:grid-cols-[minmax(0,1.15fr)_minmax(180px,0.85fr)_minmax(160px,0.7fr)] max-nav:items-start max-nav:gap-4 max-nav:border-r-0 max-nav:border-b max-nav:p-4 max-sm:grid-cols-1">
+    <aside className="min-w-0 backdrop-saturate-[1.05] min-h-0 overflow-y-auto border-r border-line bg-panel px-5 py-5 max-nav:grid max-nav:grid-cols-[minmax(0,1.15fr)_minmax(180px,0.85fr)_minmax(160px,0.7fr)] max-nav:items-start max-nav:gap-4 max-nav:border-r-0 max-nav:border-b max-nav:p-4 max-sm:grid-cols-1">
       <div className="brand-row flex items-start justify-between gap-3 max-sm:flex-col">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
@@ -60,17 +61,7 @@ export function SidePanel({
           </h1>
         </div>
         <span className="inline-flex min-h-7 min-w-0 items-center gap-2 rounded-full border border-line bg-[color-mix(in_oklch,var(--app-surface)_82%,transparent)] px-2.5 text-ui-md font-ui-650 whitespace-nowrap text-muted mt-0.5 max-sm:self-start">
-          <span
-            aria-hidden="true"
-            className={[
-              "h-2 w-2 rounded-full",
-              connectionState === "connected"
-                ? "bg-ready"
-                : connectionState === "error"
-                  ? "bg-danger"
-                  : "bg-muted",
-            ].join(" ")}
-          />
+          <StatusDot state={connectionState} />
           <span>{connectionLabel}</span>
         </span>
       </div>

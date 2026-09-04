@@ -7,6 +7,7 @@ import type { CameraPhoto, PhotoCatalogState, Rating } from "../photos/types";
 import { formatZoomLabel } from "../photos/zoom";
 import type { PhotoZoomState, ZoomAction } from "../photos/zoom";
 import type { Locale, t as translate } from "../../i18n";
+import { photoStageClass } from "../photos/photoStyles";
 
 type Translate = (
   key: Parameters<typeof translate>[0],
@@ -57,8 +58,8 @@ export function WorkspacePanel({
   const title = reviewPhoto ? reviewPhoto.fileName : tr("connection.connectCamera");
 
   return (
-    <section className="workspace grid h-full min-h-0 grid-rows-[84px_minmax(0,1fr)_156px] max-nav:grid-rows-[auto_minmax(0,1fr)_144px] max-sm:grid-rows-[auto_minmax(0,auto)_142px] max-sm:min-h-0">
-      <header className="top-bar flex min-h-0 items-center justify-between gap-5 border-b border-line px-6 py-4 max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:p-4">
+    <section className="grid h-full min-w-0 min-h-0 grid-rows-[84px_minmax(0,1fr)_156px] max-nav:grid-rows-[auto_minmax(0,1fr)_144px] max-sm:grid-rows-[auto_minmax(0,auto)_142px] max-sm:min-h-0">
+      <header className="flex min-w-0 backdrop-saturate-[1.05] min-h-0 items-center justify-between gap-5 border-b border-line px-6 py-4 max-sm:flex-col max-sm:items-start max-sm:gap-3 max-sm:p-4">
         <div className="min-w-0">
           <p className="min-w-0 truncate wrap-anywhere text-sm text-muted" title={status}>
             {status}
@@ -91,12 +92,9 @@ export function WorkspacePanel({
         </div>
       </header>
 
-      <div className="review-area grid min-h-0 grid-cols-[minmax(0,1fr)_232px] max-nav:grid-cols-1 max-nav:grid-rows-[minmax(0,1fr)_auto] max-sm:min-h-0">
+      <div className="grid min-w-0 min-h-0 grid-cols-[minmax(0,1fr)_232px] max-nav:grid-cols-1 max-nav:grid-rows-[minmax(0,1fr)_auto] max-sm:min-h-0">
         <figure
-          className={[
-            "photo-stage relative flex min-h-0 min-w-0 items-center justify-center overflow-hidden p-6 max-sm:min-h-[42vh] max-sm:p-4",
-            isReviewReady ? "" : "empty",
-          ].join(" ")}
+          className={photoStageClass(isReviewReady)}
         >
           {reviewPhoto ? (
             <PhotoStage
@@ -116,7 +114,7 @@ export function WorkspacePanel({
           )}
         </figure>
 
-        <aside className="details-panel min-h-0 overflow-y-auto border-l border-line bg-panel p-5 max-nav:border-l-0 max-nav:border-t max-nav:px-4 max-nav:py-3.5">
+        <aside className="min-w-0 backdrop-saturate-[1.05] min-h-0 overflow-y-auto border-l border-line bg-panel p-5 max-nav:border-l-0 max-nav:border-t max-nav:px-4 max-nav:py-3.5">
           <h3 className="section-label">{tr("app.details")}</h3>
           {reviewPhoto ? <PhotoDetails locale={locale} photo={reviewPhoto} /> : null}
           {isReviewReady ? null : <EmptyPhotoDetails locale={locale} />}
@@ -128,7 +126,7 @@ export function WorkspacePanel({
         </aside>
       </div>
 
-      <nav className="filmstrip min-w-0 border-t border-line bg-panel px-4 py-3 max-sm:p-3">
+      <nav className="min-w-0 backdrop-saturate-[1.05] border-t border-line bg-panel px-4 py-3 max-sm:p-3">
         {isReviewReady ? (
           <Filmstrip
             locale={locale}

@@ -9,6 +9,28 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
     private var downloadFinished = false
     private var downloadError: Error?
 
+    // 常驻模式下浏览器与相机会话跨请求复用：设备扫描（实测占满整个 timeout，
+    // 3~8s）与「打开会话 + 等目录」只在首次请求时付一次。
+    // 一次性 argv 模式不开这个开关，行为与改造前完全一致。
+    private var keepsSessionAlive = false
+    private var browserRunning = false
+
+    // 由 Daemon 在启动时调用，声明本进程要长期持有浏览器与会话
+    func enablePersistentSession() {
+        keepsSessionAlive = true
+        log("persistent session enabled")
+    }
+
+    // 进程退出前收尾：关掉仍然打开的会话并停掉浏览器
+    func shutdown() {
+        for camera in cameraDevices where camera.hasOpenSession {
+            camera.requestCloseSession()
+        }
+        keepsSessionAlive = false
+        stopBrowser()
+        log("store shutdown")
+    }
+
     func listCameras(timeout: TimeInterval) -> [CameraDevice] {
         log("list-cameras started timeout=\(timeout)s")
         startBrowser(timeout: timeout)
@@ -43,14 +65,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             return []
         }
 
-        contentCatalogFinished = false
-        camera.delegate = self
-        camera.requestOpenSession()
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while !contentCatalogFinished && !hasReadableItems(camera) && Date() < deadline {
-            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
-        }
+        openSessionIfNeeded(camera, timeout: timeout)
 
         let cacheURL = URL(fileURLWithPath: cacheDir, isDirectory: true)
         let items = readableItems(for: camera)
@@ -69,8 +84,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             cameraId: cameraId,
             cachedImages: cachedImages
         )
-        camera.requestCloseSession()
-        camera.delegate = nil
+        closeSessionIfNeeded(camera)
         log("list-photos finished photoCount=\(photos.count)")
         return photos
     }
@@ -106,14 +120,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             return photoIds.map { CachedPhotoPreview(photoId: $0, previewUrl: "", thumbnailUrl: "") }
         }
 
-        contentCatalogFinished = false
-        camera.delegate = self
-        camera.requestOpenSession()
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while !contentCatalogFinished && !hasReadableItems(camera) && Date() < deadline {
-            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
-        }
+        openSessionIfNeeded(camera, timeout: timeout)
 
         let items = readableItems(for: camera)
         let requestedIds = Set(photoIds)
@@ -132,8 +139,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             previewPhotoIds: Set(previewPhotoIds),
             timeout: timeout
         )
-        camera.requestCloseSession()
-        camera.delegate = nil
+        closeSessionIfNeeded(camera)
         let previews = photoIds.map { photoId in
             let file = filesByPhotoId[photoId]
             let cachedImage = file.map { cachedImages[ObjectIdentifier($0)] } ?? nil
@@ -166,14 +172,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             return ExportPhotosSummary(copied: 0, skipped: 0, failed: photoIds.count)
         }
 
-        contentCatalogFinished = false
-        camera.delegate = self
-        camera.requestOpenSession()
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while !contentCatalogFinished && !hasReadableItems(camera) && Date() < deadline {
-            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
-        }
+        openSessionIfNeeded(camera, timeout: timeout)
         let items = readableItems(for: camera)
         log("export-photos catalogFinished=\(contentCatalogFinished) contentItems=\((camera.contents ?? []).count) mediaFiles=\((camera.mediaFiles ?? []).count)")
         logCameraState(camera, context: "export-photos-after-catalog")
@@ -184,8 +183,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             withIntermediateDirectories: true
         )) != nil else {
             log("export-photos failed to create destinationDir=\(destinationDir)")
-            camera.requestCloseSession()
-            camera.delegate = nil
+            closeSessionIfNeeded(camera)
             return ExportPhotosSummary(copied: 0, skipped: 0, failed: photoIds.count)
         }
 
@@ -221,8 +219,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             }
         }
 
-        camera.requestCloseSession()
-        camera.delegate = nil
+        closeSessionIfNeeded(camera)
         log("export-photos finished copied=\(copied) skipped=\(skipped) failed=\(failed)")
         return ExportPhotosSummary(copied: copied, skipped: skipped, failed: failed)
     }
@@ -324,7 +321,46 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         log("device removed during session name=\(device.name ?? "Unknown")")
     }
 
+    // 打开会话并等目录就绪。常驻模式下会话与目录只在首次付一次代价：
+    // 已打开的会话直接复用，contentCatalogFinished 也不再重置——目录完成回调
+    // 只会来一次，重置后再等就是等一个永不到来的回调。
+    private func openSessionIfNeeded(_ camera: ICCameraDevice, timeout: TimeInterval) {
+        if keepsSessionAlive && camera.hasOpenSession && contentCatalogFinished {
+            return
+        }
+
+        if !camera.hasOpenSession {
+            if !keepsSessionAlive || !contentCatalogFinished {
+                contentCatalogFinished = false
+            }
+            camera.delegate = self
+            camera.requestOpenSession()
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while !contentCatalogFinished && !hasReadableItems(camera) && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
+        }
+    }
+
+    // 常驻模式下不关会话，留给 shutdown 收尾
+    private func closeSessionIfNeeded(_ camera: ICCameraDevice) {
+        if keepsSessionAlive {
+            return
+        }
+
+        camera.requestCloseSession()
+        camera.delegate = nil
+    }
+
     private func startBrowser(timeout: TimeInterval) {
+        // 常驻模式下浏览器只启动一次：didAdd/didRemove 会持续增量维护
+        // cameraDevices，重扫一遍只是白白再等一个 timeout。
+        if browserRunning {
+            log("browser already running devices=\(cameraDevices.count) (reused)")
+            return
+        }
+
         cameraDevices = []
         initialScanFinished = false
         browser.delegate = self
@@ -332,6 +368,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         let start = Date()
         log("browser starting mask=camera timeout=\(timeout)s")
         browser.start()
+        browserRunning = true
 
         let deadline = Date().addingTimeInterval(timeout)
         while !initialScanFinished && Date() < deadline {
@@ -342,8 +379,15 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
     }
 
     private func stopBrowser() {
+        // 常驻模式下 defer 里的 stopBrowser 要变成 no-op，否则设备句柄失效、
+        // 已枚举的目录元数据全部作废
+        if keepsSessionAlive {
+            return
+        }
+
         browser.stop()
         browser.delegate = nil
+        browserRunning = false
         log("browser stopped")
     }
 

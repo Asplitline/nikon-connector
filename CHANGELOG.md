@@ -6,6 +6,20 @@ This project follows SemVer and keeps release notes in Keep a Changelog style.
 
 ## [Unreleased]
 
+### Changed
+
+- Camera helper now runs as a persistent daemon over NDJSON instead of one
+  subprocess per request, so the fixed ImageCaptureCore cost (device scan,
+  session open, catalog wait) is paid once per app session rather than once
+  per preview batch. Measured locally: ten requests cost the same 8s as one,
+  where the previous architecture needed ~30s.
+- Photo enumeration streams to the UI in batches through a `photos:batch`
+  event, so the first thumbnails appear without waiting for the whole card.
+- Preview requests are debounced and cancellable, so holding an arrow key no
+  longer stacks one backend round-trip per keypress.
+- The filmstrip is virtualized and thumbnails load lazily, so a large card no
+  longer mounts one DOM node per photo.
+
 ## [0.1.4] - 2026-09-03
 
 ### Added

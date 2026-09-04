@@ -1,19 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cachePhotoPreview, cachePhotoPreviews, openImageCapture } from "./cameraApi";
+import {
+  cachePhotoPreview,
+  cachePhotoPreviews,
+  openImageCapture,
+  type PhotoBatchEvent,
+  streamPhotos,
+} from "./cameraApi";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(),
+}));
+
 const invokeMock = invoke as unknown as {
   mockReset: () => void;
+  mockRejectedValue: (value: unknown) => void;
   mockResolvedValue: (value: unknown) => void;
+};
+
+const listenMock = listen as unknown as {
+  mockReset: () => void;
+  mockImplementation: (
+    handler: (
+      event: string,
+      callback: (payload: { payload: PhotoBatchEvent }) => void,
+    ) => Promise<() => void>,
+  ) => void;
 };
 
 describe("camera api", () => {
   beforeEach(() => {
     invokeMock.mockReset();
+    listenMock.mockReset();
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: {},
@@ -22,6 +45,54 @@ describe("camera api", () => {
       configurable: true,
       value: {},
     });
+  });
+
+  it("subscribes before triggering enumeration so no batch is missed", async () => {
+    const calls: string[] = [];
+    listenMock.mockImplementation(async () => {
+      calls.push("listen");
+      return () => undefined;
+    });
+    invokeMock.mockResolvedValue({ cameraId: "z6iii", total: 3 });
+
+    const handle = await streamPhotos("z6iii", () => undefined);
+    calls.push("invoke");
+
+    expect(calls).toEqual(["listen", "invoke"]);
+    expect(handle.total).toBe(3);
+  });
+
+  it("delivers batches for the requested camera only", async () => {
+    const listeners: ((payload: { payload: PhotoBatchEvent }) => void)[] = [];
+    listenMock.mockImplementation(async (_event, callback) => {
+      listeners.push(callback);
+      return () => undefined;
+    });
+    invokeMock.mockResolvedValue({ cameraId: "z6iii", total: 0 });
+
+    const received: PhotoBatchEvent[] = [];
+    await streamPhotos("z6iii", (batch) => received.push(batch));
+
+    for (const emit of listeners) {
+      emit({ payload: { cameraId: "other", done: true, photos: [] } });
+      emit({ payload: { cameraId: "z6iii", done: true, photos: [] } });
+    }
+
+    expect(received).toHaveLength(1);
+    expect(received[0].cameraId).toBe("z6iii");
+  });
+
+  it("unsubscribes when enumeration fails to start", async () => {
+    let unlistened = false;
+    listenMock.mockImplementation(async () => () => {
+      unlistened = true;
+    });
+    invokeMock.mockRejectedValue(new Error("helper unavailable"));
+
+    await expect(streamPhotos("z6iii", () => undefined)).rejects.toThrow(
+      "helper unavailable",
+    );
+    expect(unlistened).toBe(true);
   });
 
   it("opens Image Capture through the native command", async () => {

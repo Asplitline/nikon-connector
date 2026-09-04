@@ -205,6 +205,49 @@ EOF
 done
 ```
 
+### JSX 内不写条件样式
+
+**JSX 属性里不出现多行 class 拼接与三元链。** 组件的 JSX 应当只描述
+「有哪些元素、如何嵌套」，一旦夹进 `className={[...].join(" ")}`，
+结构就被样式细节淹没了。
+
+抽取方式取决于**变体由什么驱动**：
+
+| 驱动来源 | 抽取为 | 放在哪 |
+| --- | --- | --- |
+| 枚举状态（连接态、导出态、诊断态） | `Record<State, string>` 映射 | `*Styles.ts` |
+| 布尔变体（选中、禁用、激活） | `xxxClass(flag): string` 函数 | `*Styles.ts` |
+| 带结构的可复用视觉元素 | 独立组件 | `*.tsx` |
+
+前两者是**样式**，第三者是**元素**。判据很简单：如果抽出来的东西自带 DOM
+结构（哪怕只有一个 `<span>`），它就是组件；如果只产出一个字符串，它就是样式函数。
+
+**枚举状态优先用 `Record` 而不是三元链**，因为三元链会静默兜底。本次抽
+`StatusDot` 时就发现了真实缺陷：原三元链写作
+
+```tsx
+connectionState === "connected" ? "bg-ready"
+  : connectionState === "error" ? "bg-danger"
+  : "bg-muted"   // ← loading 与 not_connected 都落到这里，且无人察觉
+```
+
+改成 `Record<CameraConnectionState, string>` 后，TypeScript 立即要求补齐
+全部四个状态。**新增枚举值时，`Record` 会编译报错，三元链只会悄悄走默认分支。**
+
+现有样式模块：
+
+| 模块 | 覆盖 |
+| --- | --- |
+| `features/app/statusStyles.ts` | 状态徽标、诊断步骤、更新提示条 |
+| `features/app/buttonStyles.ts` | 主/次按钮及尺寸变体 |
+| `features/app/formStyles.ts` | 表单标签与输入框 |
+| `features/photos/photoStyles.ts` | 星标、胶片条缩略图、预览图、舞台容器 |
+
+跨 feature 复用的放 `features/app/`，只服务单个 feature 的放该 feature 目录内。
+
+**边界**：仅一处使用且无条件分支的静态长 class 串，直接内联即可，不必为它
+建函数——抽取的动因是「条件分支污染结构」，不是「字符串太长」。
+
 ### 纯逻辑层
 
 - 无副作用、不 import React
@@ -284,6 +327,8 @@ feature 归位。但**行数达标不等于结构清晰**：此时容器层仍�
 - [ ] hook 返回值先解构再进依赖数组，没有整个对象进 deps
 - [ ] 单个组件文件 ≤ 200 行（硬上限 400）
 - [ ] 单个组件 props ≤ 15 个，超限时已按内聚性分组或拆分
+- [ ] JSX 内无 `className={[...].join(" ")}`，条件样式已抽到 `*Styles.ts` 或组件
+- [ ] 枚举驱动的样式用 `Record<State, string>` 而非三元链
 - [ ] 没有为兼容旧路径保留 re-export 转发层
 - [ ] scoped 校验通过：`bunx tsc --noEmit`（需 `ALLOW_HEAVY=1`）、
       `bunx eslint <改动文件>`、`bunx vitest run src/features`

@@ -1,8 +1,16 @@
 pub mod cache;
 #[cfg(target_os = "macos")]
 mod helper_bridge;
+#[cfg(target_os = "macos")]
+mod helper_daemon;
 mod mock_provider;
 pub mod types;
+
+// 退出时收掉常驻 helper，避免留下孤儿进程占着相机会话
+pub fn shutdown_helper() {
+    #[cfg(target_os = "macos")]
+    helper_bridge::shutdown();
+}
 
 pub use types::{CachedPhotoPreview, CameraDevice, CameraPhoto, ExportPhotosSummary};
 
