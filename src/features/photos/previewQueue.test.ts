@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createPreviewPlan, createPreviewQueue, needsTier } from "./previewQueue";
+import {
+  createPreviewPlan,
+  createPreviewQueue,
+  createPreviewRequestBatches,
+  needsTier,
+  previewRequestKey,
+} from "./previewQueue";
 import type { CameraPhoto } from "./types";
 
 function photo(id: string, previewUrl = "", thumbnailUrl = ""): CameraPhoto {
@@ -99,5 +105,72 @@ describe("preview queue", () => {
 
     expect(needsTier(photo("a"), "preview", inFlight)).toBe(false);
     expect(needsTier(photo("a"), "thumbnail", inFlight)).toBe(false);
+  });
+
+  it("preloads the next screen as preview tier after the selected photo", () => {
+    const plan = createPreviewPlan({
+      photos: [
+        photo("one"),
+        photo("two"),
+        photo("three"),
+        photo("four"),
+        photo("five"),
+        photo("six"),
+      ],
+      selectedPhotoId: "two",
+      inFlightPhotoIds: new Set(),
+      previewLookahead: 3,
+      radius: 1,
+    });
+
+    expect(plan.map((item) => `${item.photo.id}:${item.tier}`)).toEqual([
+      "two:preview",
+      "three:preview",
+      "four:preview",
+      "five:preview",
+      "one:thumbnail",
+    ]);
+  });
+
+  it("does not let an in-flight thumbnail block selected preview upgrade", () => {
+    const plan = createPreviewPlan({
+      photos: [photo("selected", "", "/cache/selected-thumb.jpg")],
+      selectedPhotoId: "selected",
+      inFlightPhotoIds: new Set([previewRequestKey("selected", "thumbnail")]),
+      radius: 0,
+    });
+
+    expect(plan).toEqual([
+      { photo: expect.objectContaining({ id: "selected" }), tier: "preview" },
+    ]);
+  });
+
+  it("deduplicates by photo and tier when tier-aware keys are used", () => {
+    const inFlight = new Set([previewRequestKey("a", "preview")]);
+
+    expect(needsTier(photo("a"), "preview", inFlight)).toBe(false);
+    expect(needsTier(photo("a"), "thumbnail", inFlight)).toBe(true);
+  });
+
+  it("splits the selected preview into the first request batch", () => {
+    const plan = createPreviewPlan({
+      photos: [photo("one"), photo("two"), photo("three"), photo("four")],
+      selectedPhotoId: "two",
+      inFlightPhotoIds: new Set(),
+      previewLookahead: 2,
+      radius: 1,
+    });
+
+    const batches = createPreviewRequestBatches(plan, "two");
+
+    expect(
+      batches.map((batch) => ({
+        photoIds: batch.items.map((item) => item.photo.id),
+        previewPhotoIds: batch.previewPhotoIds,
+      })),
+    ).toEqual([
+      { photoIds: ["two"], previewPhotoIds: ["two"] },
+      { photoIds: ["three", "four", "one"], previewPhotoIds: ["three", "four"] },
+    ]);
   });
 });

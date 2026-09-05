@@ -23,7 +23,11 @@ import {
   readLocalRatings,
   writeLocalRating,
 } from "../photos/localRatings";
-import { createPreviewPlan } from "../photos/previewQueue";
+import {
+  createPreviewPlan,
+  createPreviewRequestBatches,
+  previewRequestKey,
+} from "../photos/previewQueue";
 import {
   createGenerationGuard,
   createPreviewScheduler,
@@ -47,6 +51,8 @@ interface PreviewBatchRequest {
 
 // 防抖窗口：略小于连续按键间隔，既能合并连按又不让单次换图有明显延迟
 const previewDebounceMs = 140;
+const previewLookaheadCount = 8;
+const thumbnailRadius = 8;
 
 export interface CameraSession {
   activeCamera: CameraDevice | null;
@@ -187,38 +193,46 @@ export function useCameraSession(locale: Locale): CameraSession {
         photos,
         selectedPhotoId,
         inFlightPhotoIds: inFlightPreviewIdsRef.current,
-        radius: 2,
+        previewLookahead: previewLookaheadCount,
+        radius: thumbnailRadius,
       });
 
       if (plan.length === 0) {
         return;
       }
 
-      const photoIds = plan.map((item) => item.photo.id);
-      const previewPhotoIds = plan
-        .filter((item) => item.tier === "preview")
-        .map((item) => item.photo.id);
+      const batches = createPreviewRequestBatches(plan, selectedPhotoId);
+      const requestKeys = plan.map((item) => previewRequestKey(item.photo.id, item.tier));
 
       void writeAppLog(
         "info",
         "frontend.photo_preview",
-        `preview queue started selected=${selectedPhotoId} count=${photoIds.length}`,
+        `preview queue started selected=${selectedPhotoId} count=${plan.length} preview=${plan.filter((item) => item.tier === "preview").length}`,
       );
 
       // 记下本批的代次，await 之后若已被新选择作废就丢弃结果
       const isCurrent = previewGuardRef.current.begin();
-      for (const photoId of photoIds) {
-        inFlightPreviewIdsRef.current.add(photoId);
+      for (const key of requestKeys) {
+        inFlightPreviewIdsRef.current.add(key);
       }
 
       try {
-        const previews = await cachePhotoPreviews(cameraId, photoIds, { previewPhotoIds });
-        if (!isCurrent()) {
-          return;
-        }
-        for (const preview of previews) {
-          if (preview.previewUrl || preview.thumbnailUrl) {
-            setCatalog((current) => updatePhotoPreview(current, preview));
+        for (const batch of batches) {
+          if (!isCurrent()) {
+            return;
+          }
+
+          const photoIds = batch.items.map((item) => item.photo.id);
+          const previews = await cachePhotoPreviews(cameraId, photoIds, {
+            previewPhotoIds: batch.previewPhotoIds,
+          });
+          if (!isCurrent()) {
+            return;
+          }
+          for (const preview of previews) {
+            if (preview.previewUrl || preview.thumbnailUrl) {
+              setCatalog((current) => updatePhotoPreview(current, preview));
+            }
           }
         }
       } catch (error) {
@@ -229,8 +243,8 @@ export function useCameraSession(locale: Locale): CameraSession {
           `preview batch failed selected=${selectedPhotoId}: ${message}`,
         );
       } finally {
-        for (const photoId of photoIds) {
-          inFlightPreviewIdsRef.current.delete(photoId);
+        for (const key of requestKeys) {
+          inFlightPreviewIdsRef.current.delete(key);
         }
       }
     },
