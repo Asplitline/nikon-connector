@@ -26,7 +26,9 @@ import {
 import {
   createPreviewPlan,
   createPreviewRequestBatches,
+  previewLookaheadForWindow,
   previewRequestKey,
+  type PreviewVisibleWindow,
 } from "../photos/previewQueue";
 import {
   createGenerationGuard,
@@ -47,11 +49,12 @@ interface PreviewBatchRequest {
   cameraId: string;
   photos: CameraPhoto[];
   selectedPhotoId: string;
+  visibleWindow: PreviewVisibleWindow | null;
 }
 
 // 防抖窗口：略小于连续按键间隔，既能合并连按又不让单次换图有明显延迟
 const previewDebounceMs = 140;
-const previewLookaheadCount = 8;
+const fallbackPreviewLookaheadCount = 8;
 const thumbnailRadius = 8;
 
 export interface CameraSession {
@@ -61,7 +64,11 @@ export interface CameraSession {
   exportStatus: ExportStatus;
   loadCamera: () => Promise<void>;
   ratingError: string | null;
-  rebuildPreviewQueue: (photos: CameraPhoto[], selectedPhotoId: string | null) => void;
+  rebuildPreviewQueue: (
+    photos: CameraPhoto[],
+    selectedPhotoId: string | null,
+    options?: { visibleWindow?: PreviewVisibleWindow | null },
+  ) => void;
   runExport: (photoIds: string[], destinationDir: string) => Promise<void>;
   scanError: string | null;
   setCatalog: React.Dispatch<React.SetStateAction<PhotoCatalogState>>;
@@ -188,12 +195,16 @@ export function useCameraSession(locale: Locale): CameraSession {
 
   // 真正发起一批预览请求。经调度器防抖后调用，同一时刻只会有一批在途。
   const flushPreviewBatch = useCallback(
-    async ({ cameraId, photos, selectedPhotoId }: PreviewBatchRequest) => {
+    async ({ cameraId, photos, selectedPhotoId, visibleWindow }: PreviewBatchRequest) => {
+      const previewLookahead = previewLookaheadForWindow({
+        fallback: fallbackPreviewLookaheadCount,
+        visibleWindow,
+      });
       const plan = createPreviewPlan({
         photos,
         selectedPhotoId,
         inFlightPhotoIds: inFlightPreviewIdsRef.current,
-        previewLookahead: previewLookaheadCount,
+        previewLookahead,
         radius: thumbnailRadius,
       });
 
@@ -207,7 +218,7 @@ export function useCameraSession(locale: Locale): CameraSession {
       void writeAppLog(
         "info",
         "frontend.photo_preview",
-        `preview queue started selected=${selectedPhotoId} count=${plan.length} preview=${plan.filter((item) => item.tier === "preview").length}`,
+        `preview queue started selected=${selectedPhotoId} count=${plan.length} preview=${plan.filter((item) => item.tier === "preview").length} lookahead=${previewLookahead}`,
       );
 
       // 记下本批的代次，await 之后若已被新选择作废就丢弃结果
@@ -278,7 +289,11 @@ export function useCameraSession(locale: Locale): CameraSession {
   }, [activeCamera?.id]);
 
   const rebuildPreviewQueue = useCallback(
-    (photos: CameraPhoto[], selectedPhotoId: string | null) => {
+    (
+      photos: CameraPhoto[],
+      selectedPhotoId: string | null,
+      options: { visibleWindow?: PreviewVisibleWindow | null } = {},
+    ) => {
       if (!activeCamera || !selectedPhotoId) {
         return;
       }
@@ -287,6 +302,7 @@ export function useCameraSession(locale: Locale): CameraSession {
         cameraId: activeCamera.id,
         photos,
         selectedPhotoId,
+        visibleWindow: options.visibleWindow ?? null,
       });
     },
     [activeCamera],

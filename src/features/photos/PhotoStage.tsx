@@ -101,11 +101,13 @@ const filmstripGap = 12;
 export function Filmstrip({
   locale,
   onSelect,
+  onVisibleWindowChange,
   photos,
   selectedPhotoId,
 }: {
   locale: Locale;
   onSelect: (photoId: string) => void;
+  onVisibleWindowChange?: (window: { endIndex: number; startIndex: number }) => void;
   photos: CameraPhoto[];
   selectedPhotoId: string | null;
 }) {
@@ -161,6 +163,13 @@ export function Filmstrip({
     total: photos.length,
     viewportWidth: metrics.viewportWidth,
   });
+
+  useEffect(() => {
+    onVisibleWindowChange?.({
+      endIndex: range.endIndex,
+      startIndex: range.startIndex,
+    });
+  }, [onVisibleWindowChange, range.endIndex, range.startIndex]);
 
   // 选中项被键盘换图移出视口时，把它滚回可见范围
   const selectedIndex = photos.findIndex((photo) => photo.id === selectedPhotoId);

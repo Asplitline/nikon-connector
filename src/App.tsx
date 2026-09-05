@@ -30,6 +30,10 @@ function App() {
   const [catalogSort, setCatalogSort] = useState<PhotoCatalogSort>("captured_asc");
   const [exportMode, setExportMode] = useState<ExportMode>("visible");
   const [exportDestination, setExportDestination] = useState("");
+  const [previewWindow, setPreviewWindow] = useState<{
+    endIndex: number;
+    startIndex: number;
+  } | null>(null);
 
   const tr = useCallback(
     (key: Parameters<typeof t>[0], values?: Parameters<typeof t>[1]) =>
@@ -72,13 +76,27 @@ function App() {
       return;
     }
 
-    rebuildPreviewQueue(review.catalogView.photos, review.catalogView.selectedPhotoId);
+    rebuildPreviewQueue(review.catalogView.photos, review.catalogView.selectedPhotoId, {
+      visibleWindow: previewWindow,
+    });
   }, [
+    previewWindow,
     rebuildPreviewQueue,
     review.catalogView.photos,
     review.catalogView.selectedPhotoId,
     review.isReviewReady,
   ]);
+
+  const handlePreviewWindowChange = useCallback(
+    (window: { endIndex: number; startIndex: number }) => {
+      setPreviewWindow((current) =>
+        current?.startIndex === window.startIndex && current.endIndex === window.endIndex
+          ? current
+          : window,
+      );
+    },
+    [],
+  );
 
   const handlePrimaryDiagnosticAction = useCallback(() => {
     void runAction(review.diagnostics.primaryAction.kind);
@@ -194,6 +212,7 @@ function App() {
           isReviewReady={review.isReviewReady}
           locale={locale}
           onOpenConnectionCheck={() => setConnectionCheckOpen(true)}
+          onPreviewWindowChange={handlePreviewWindowChange}
           onPrimaryDiagnosticAction={handlePrimaryDiagnosticAction}
           onRate={handleRate}
           onSelectPhoto={handleSelectPhoto}

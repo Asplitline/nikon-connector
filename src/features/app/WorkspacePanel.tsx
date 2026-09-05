@@ -28,6 +28,7 @@ export function WorkspacePanel({
   isReviewReady,
   locale,
   onOpenConnectionCheck,
+  onPreviewWindowChange,
   onPrimaryDiagnosticAction,
   onRate,
   onSelectPhoto,
@@ -43,6 +44,7 @@ export function WorkspacePanel({
   isReviewReady: boolean;
   locale: Locale;
   onOpenConnectionCheck: () => void;
+  onPreviewWindowChange: (window: { endIndex: number; startIndex: number }) => void;
   onPrimaryDiagnosticAction: () => void;
   onRate: (photo: CameraPhoto, rating: Rating) => void;
   onSelectPhoto: (photoId: string) => void;
@@ -131,6 +133,7 @@ export function WorkspacePanel({
           <Filmstrip
             locale={locale}
             onSelect={onSelectPhoto}
+            onVisibleWindowChange={onPreviewWindowChange}
             photos={selection.catalogView.photos}
             selectedPhotoId={selection.catalogView.selectedPhotoId}
           />

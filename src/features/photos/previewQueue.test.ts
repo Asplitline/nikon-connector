@@ -4,6 +4,7 @@ import {
   createPreviewQueue,
   createPreviewRequestBatches,
   needsTier,
+  previewLookaheadForWindow,
   previewRequestKey,
 } from "./previewQueue";
 import type { CameraPhoto } from "./types";
@@ -172,5 +173,18 @@ describe("preview queue", () => {
       { photoIds: ["two"], previewPhotoIds: ["two"] },
       { photoIds: ["three", "four", "one"], previewPhotoIds: ["three", "four"] },
     ]);
+  });
+
+  it("derives lookahead from the measured filmstrip window instead of a fixed 8", () => {
+    expect(
+      previewLookaheadForWindow({
+        fallback: 8,
+        visibleWindow: { endIndex: 18, startIndex: 2 },
+      }),
+    ).toBe(16);
+  });
+
+  it("keeps a fallback lookahead before the filmstrip has been measured", () => {
+    expect(previewLookaheadForWindow({ fallback: 8, visibleWindow: null })).toBe(8);
   });
 });

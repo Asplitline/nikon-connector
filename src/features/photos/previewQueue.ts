@@ -14,6 +14,11 @@ export interface PreviewRequestBatch {
   previewPhotoIds: string[];
 }
 
+export interface PreviewVisibleWindow {
+  endIndex: number;
+  startIndex: number;
+}
+
 export interface PreviewQueueOptions {
   photos: CameraPhoto[];
   selectedPhotoId: string | null;
@@ -149,4 +154,18 @@ export function createPreviewRequestBatches(
   }
 
   return batches;
+}
+
+export function previewLookaheadForWindow({
+  fallback,
+  visibleWindow,
+}: {
+  fallback: number;
+  visibleWindow: PreviewVisibleWindow | null;
+}) {
+  if (!visibleWindow) {
+    return fallback;
+  }
+
+  return Math.max(fallback, visibleWindow.endIndex - visibleWindow.startIndex);
 }
