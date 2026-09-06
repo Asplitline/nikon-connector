@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-06-native-preview-engine-design.md`
 
+**Companion plan:** `docs/superpowers/plans/2026-09-06-source-switch-local-state-metadata.md` covers Z6III/Local Folder switching, local-copy badges/state, and normalized shooting metadata. Execute its source-switch/local-state/metadata tasks as part of v0.2 rather than deferring them to later phases.
+
 ## Global Constraints
 
 - Finder Quick Look is the primary implementation quality baseline; Preview.app is the comparison baseline.
@@ -21,27 +23,9 @@
 - The native preview view must be created, mutated, and destroyed on the macOS main thread.
 - Existing camera review preview remains available for camera-only items that do not yet have a local original.
 - Native quality is only reported when the app is actually rendering a local original through the native path.
-
----
-
-## File Structure
-
-Expected new/modified units:
-
-- `src-tauri/Cargo.toml` — macOS Quick Look / AppKit Rust bindings and local-folder dialog support.
-- `src-tauri/src/native_preview/mod.rs` — platform-neutral native preview command surface.
-- `src-tauri/src/native_preview/macos.rs` — `QLPreviewView` lifecycle, window attachment, file switching, frame updates.
-- `src-tauri/src/local_photos.rs` — local folder enumeration and normalized local catalog entries.
-- `src-tauri/src/lib.rs` — register native preview and local folder commands.
-- `src/lib/nativePreviewApi.ts` — typed Tauri bridge for native preview lifecycle.
-- `src/lib/localPhotosApi.ts` — typed local folder/catalog bridge.
-- `src/features/photos/nativePreviewFrame.ts` — browser-rect to AppKit-frame conversion inputs/normalization.
-- `src/features/photos/localCatalog.ts` — local photo source/catalog mapping.
-- `src/features/app/useNativePreview.ts` — synchronize selected local file and preview viewport.
-- `src/features/app/useLocalPhotoSession.ts` — open folder, load catalog, switch workspace source.
-- `src/features/app/WorkspacePanel.tsx` — native preview placeholder and local/native preview state.
-- `src/features/app/SidePanel.tsx` or existing source controls — Open Folder / camera-local source entry.
-- Local/preview tests beside each module.
+- Z6III and Local Folder use the same workspace and source selector.
+- Downloaded/exported camera originals attach to the existing camera item and expose a visible Local state.
+- Core shooting metadata (lens, focal length, aperture, shutter, ISO, capture time, dimensions) is part of v0.2.
 
 ---
 
@@ -412,8 +396,7 @@ git commit -m "feat: generate local thumbnails with quick look"
 ```ts
 type PhotoSource =
   | { kind: "camera"; cameraId: string; storageId?: string; objectHandle?: number }
-  | { kind: "local"; filePath: string }
-  | { kind: "exported"; filePath: string; sourceCameraId?: string; sourceObjectHandle?: number };
+  | { kind: "local"; filePath: string };
 
 type DisplayAsset = {
   source: PhotoSource;
@@ -432,7 +415,7 @@ Cases:
 camera + no local file -> review
 camera + downloaded local file -> native
 local file -> native
-exported file -> native
+exported local copy -> native
 missing local file -> not native
 ```
 
@@ -494,7 +477,8 @@ Download the actual camera file to a managed cache path. Return the final local 
 Review Quality
 -> downloading
 -> local original complete
--> attach localFilePath
+-> attach localState.available / localFilePath
+-> Local badge
 -> Native Quality
 ```
 
@@ -527,7 +511,7 @@ git commit -m "feat: download camera originals for native preview"
 
 **Interfaces:**
 - Consumes: successful export destination paths.
-- Produces: `PhotoSource.kind = "exported"` / `localFilePath` for exported originals.
+- Produces: local copy state/path for the same camera item.
 
 - [ ] **Step 1: Extend export result tests**
 
@@ -535,7 +519,7 @@ Each successful copied file returns its final absolute destination path and sour
 
 - [ ] **Step 2: Attach exported paths to catalog entries**
 
-After export, the same photo can transition to Native Quality using the exported original path.
+After export, the same camera photo gains/updates `localState.available` and keeps its existing ID/rating/Pick state.
 
 - [ ] **Step 3: Preview exported files directly**
 
@@ -598,7 +582,9 @@ Cover:
 - enter/exit fullscreen;
 - local file deleted while selected;
 - camera review -> downloaded original transition;
-- camera export -> exported original transition.
+- camera export -> exported original transition;
+- downloaded/exported camera item displays Local state;
+- Z6III -> Local Folder -> Z6III state restoration.
 
 - [ ] **Step 4: Define the v0.2 release gate**
 
@@ -606,8 +592,10 @@ v0.2 cannot be called Native Photo Browser until:
 
 - embedded `QLPreviewView` passes JPG + NEF spike;
 - local folder workflow is usable;
+- source switching is usable without reconnecting a healthy Z6III;
 - local originals never use intermediate JPEG/PNG for the main view;
-- exported/downloaded originals use the same native path;
+- exported/downloaded originals use the same native path and mark the same camera item Local;
+- core shooting metadata is visible in the inspector;
 - quality regression passes against Finder Quick Look + Preview.app.
 
 - [ ] **Step 5: Commit**
@@ -621,13 +609,13 @@ git commit -m "docs: add native preview quality regression gate"
 
 ## Follow-up After v0.2 Native Photo Browser
 
-Only after the native preview foundation is stable, continue the broader roadmap in this order:
+Only after the native preview foundation, source switching, local-copy state, and core metadata are stable, continue the broader roadmap in this order:
 
 1. package the Swift camera helper as a Tauri sidecar and complete DMG/signing/notarization;
 2. implement true Swift -> Rust -> React progressive catalog streaming;
-3. make camera catalog enumeration metadata-light and EXIF lazy;
+3. make camera catalog enumeration metadata-light while keeping selected-photo EXIF lazy;
 4. harden batch export progress/cancellation/errors;
 5. verify Nikon SDK rating write-back;
-6. add RAW+JPG pairing and deeper shooting review.
+6. add RAW+JPG pairing and deeper shooting review analytics.
 
 The native preview engine should remain the single full-quality rendering path for all future local/downloaded/exported file workflows.
