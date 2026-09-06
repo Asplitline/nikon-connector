@@ -27,6 +27,11 @@ pub struct CameraPhoto {
     pub storage_id: Option<String>,
     pub can_download_original: Option<bool>,
     pub has_embedded_preview: Option<bool>,
+    pub aperture: Option<String>,
+    pub exposure_compensation: Option<String>,
+    pub focal_length: Option<String>,
+    pub iso: Option<u32>,
+    pub shutter_speed: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

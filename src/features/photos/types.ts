@@ -29,6 +29,11 @@ export interface CameraPhoto {
   storageId?: string;
   canDownloadOriginal?: boolean;
   hasEmbeddedPreview?: boolean;
+  aperture?: string;
+  exposureCompensation?: string;
+  focalLength?: string;
+  iso?: number;
+  shutterSpeed?: string;
 }
 
 export interface PhotoCatalogState {

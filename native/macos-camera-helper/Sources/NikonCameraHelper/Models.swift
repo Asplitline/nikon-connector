@@ -23,6 +23,11 @@ struct CameraPhoto: Codable {
     let storageId: String?
     let canDownloadOriginal: Bool?
     let hasEmbeddedPreview: Bool?
+    let aperture: String?
+    let exposureCompensation: String?
+    let focalLength: String?
+    let iso: Int?
+    let shutterSpeed: String?
 }
 
 struct CommandError: Codable {

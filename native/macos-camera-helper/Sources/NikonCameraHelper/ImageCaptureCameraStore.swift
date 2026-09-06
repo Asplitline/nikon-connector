@@ -431,7 +431,12 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
                 objectHandle: objectHandle,
                 storageId: storageId,
                 canDownloadOriginal: true,
-                hasEmbeddedPreview: false
+                hasEmbeddedPreview: false,
+                aperture: nil,
+                exposureCompensation: nil,
+                focalLength: nil,
+                iso: nil,
+                shutterSpeed: nil
             )]
         }
     }

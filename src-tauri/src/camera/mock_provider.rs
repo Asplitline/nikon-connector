@@ -59,6 +59,11 @@ fn synthetic_photos(camera_id: &str, count: usize) -> Vec<CameraPhoto> {
                 storage_id: Some("mock-store".into()),
                 can_download_original: Some(true),
                 has_embedded_preview: template.has_embedded_preview,
+                aperture: template.aperture.clone(),
+                exposure_compensation: template.exposure_compensation.clone(),
+                focal_length: template.focal_length.clone(),
+                iso: template.iso,
+                shutter_speed: template.shutter_speed.clone(),
             }
         })
         .collect()
@@ -106,6 +111,11 @@ pub fn mock_photos() -> Vec<CameraPhoto> {
             storage_id: None,
             can_download_original: Some(true),
             has_embedded_preview: Some(true),
+            aperture: Some("f/5.6".into()),
+            exposure_compensation: Some("0 EV".into()),
+            focal_length: Some("35 mm".into()),
+            iso: Some(200),
+            shutter_speed: Some("1/320".into()),
         },
         CameraPhoto {
             id: "dsc-6328".into(),
@@ -123,6 +133,11 @@ pub fn mock_photos() -> Vec<CameraPhoto> {
             storage_id: None,
             can_download_original: Some(true),
             has_embedded_preview: Some(true),
+            aperture: Some("f/2.8".into()),
+            exposure_compensation: Some("-0.3 EV".into()),
+            focal_length: Some("70 mm".into()),
+            iso: Some(400),
+            shutter_speed: Some("1/500".into()),
         },
         CameraPhoto {
             id: "dsc-6341".into(),
@@ -140,6 +155,11 @@ pub fn mock_photos() -> Vec<CameraPhoto> {
             storage_id: None,
             can_download_original: Some(true),
             has_embedded_preview: Some(true),
+            aperture: Some("f/8".into()),
+            exposure_compensation: Some("+0.7 EV".into()),
+            focal_length: Some("24 mm".into()),
+            iso: Some(100),
+            shutter_speed: Some("1/125".into()),
         },
     ]
 }

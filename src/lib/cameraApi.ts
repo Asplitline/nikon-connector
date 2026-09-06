@@ -198,6 +198,11 @@ const mockPhotos: CameraPhoto[] = [
     width: 6048,
     height: 4024,
     sizeMb: 19.8,
+    aperture: "f/5.6",
+    exposureCompensation: "0 EV",
+    focalLength: "35 mm",
+    iso: 200,
+    shutterSpeed: "1/320",
     previewUrl:
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=82",
     thumbnailUrl:
@@ -213,6 +218,11 @@ const mockPhotos: CameraPhoto[] = [
     width: 6048,
     height: 4024,
     sizeMb: 37.2,
+    aperture: "f/2.8",
+    exposureCompensation: "-0.3 EV",
+    focalLength: "70 mm",
+    iso: 400,
+    shutterSpeed: "1/500",
     previewUrl:
       "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1600&q=82",
     thumbnailUrl:
@@ -228,6 +238,11 @@ const mockPhotos: CameraPhoto[] = [
     width: 6048,
     height: 4024,
     sizeMb: 16.5,
+    aperture: "f/8",
+    exposureCompensation: "+0.7 EV",
+    focalLength: "24 mm",
+    iso: 100,
+    shutterSpeed: "1/125",
     previewUrl:
       "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1600&q=82",
     thumbnailUrl:
@@ -243,6 +258,11 @@ const mockPhotos: CameraPhoto[] = [
     width: 6048,
     height: 4024,
     sizeMb: 12.9,
+    aperture: "f/4",
+    exposureCompensation: "0 EV",
+    focalLength: "50 mm",
+    iso: 640,
+    shutterSpeed: "1/250",
     previewUrl:
       "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1600&q=82",
     thumbnailUrl:
@@ -258,6 +278,11 @@ const mockPhotos: CameraPhoto[] = [
     width: 6048,
     height: 4024,
     sizeMb: 18.1,
+    aperture: "f/11",
+    exposureCompensation: "-1 EV",
+    focalLength: "85 mm",
+    iso: 100,
+    shutterSpeed: "1/160",
     previewUrl:
       "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=82",
     thumbnailUrl:
