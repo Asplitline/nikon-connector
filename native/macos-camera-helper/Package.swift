@@ -12,8 +12,13 @@ let package = Package(
             name: "NikonCameraHelper",
             linkerSettings: [
                 .linkedFramework("Foundation"),
-                .linkedFramework("ImageCaptureCore")
+                .linkedFramework("ImageCaptureCore"),
+                .linkedFramework("ImageIO")
             ]
+        ),
+        .testTarget(
+            name: "NikonCameraHelperTests",
+            dependencies: ["NikonCameraHelper"]
         )
     ]
 )
