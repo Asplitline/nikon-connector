@@ -1,113 +1,354 @@
 # Nikon Connector TODO
 
-下一阶段目标：把当前可用的 Nikon Z6III 开发版本推进到一个可以稳定分发、快速浏览大容量相机卡、完成选片后选择性导出的 macOS 工具。
+## 当前产品定位
 
-## 当前阶段判断
+现阶段 Nikon Connector 的核心价值仍然是：
 
-核心链路已经成立：
+> **连接 Nikon 相机，在不完整导入整张卡的前提下快速做第一轮初筛。**
 
-`Nikon Z6III -> ImageCaptureCore -> Swift helper -> Rust/Tauri -> React`
+相机直连阶段优先速度，允许使用相机 thumbnail / embedded preview / display preview 完成快速浏览、Pick/Reject、星级和初筛。
 
-当前已经具备真机发现、照片枚举、本地缩略图/预览缓存、键盘选片、Pick/Reject、本地星级、筛选排序、选择性导出、EXIF 展示、filmstrip 虚拟化和 preview 调度。
+下一阶段增加第二条核心能力：
 
-下一阶段先解决发布和性能基础，再继续扩功能。
+> **一旦图片已经在本地，预览质量必须进入 Native Quality，不再接受 WebView、中间 JPEG 或低分辨率 preview 带来的清晰度妥协。**
 
----
+质量基线：
 
-## P0 — Release Ready
+1. Finder Quick Look（Space）——主实现基线。
+2. Preview.app ——视觉对比基线。
 
-### 1. 将 Swift camera helper 作为 Tauri sidecar 打进应用包
+设计文档：
 
-- [ ] 增加 release helper build 脚本，产物使用 `release` 配置。
-- [ ] 将 `nikon-camera-helper` 放入 Tauri 可识别的 sidecar/binary 目录。
-- [ ] 在 `tauri.conf.json` 中声明 external binary / sidecar。
-- [ ] Rust 运行时优先解析应用包内 helper 路径。
-- [ ] 保留 `NIKON_CAMERA_HELPER` 作为开发与诊断覆盖入口。
-- [ ] 删除发布版本对 `native/macos-camera-helper/.build/debug/...` 的依赖。
-- [ ] DMG 安装后在一台干净环境 Mac 上完成：启动 -> 识别相机 -> 浏览照片 -> 导出原图。
-
-**验收：** 从 GitHub Release 下载 DMG 后，不需要源码、Swift build 目录或开发环境即可连接 Z6III。
-
-### 2. 补齐 macOS 签名与公证
-
-- [ ] helper 与主 App 使用一致的发布签名链路。
-- [ ] 配置 Hardened Runtime / 必需 entitlement。
-- [ ] 完成 Developer ID 签名。
-- [ ] 完成 Apple notarization 与 stapling。
-- [ ] 验证 Gatekeeper 下首次安装体验。
-
-**验收：** 用户正常打开 DMG 安装，无“来源不明/已损坏”类阻断。
+- `docs/superpowers/specs/2026-09-06-native-preview-engine-design.md`
+- `docs/superpowers/plans/2026-09-06-native-preview-engine.md`
 
 ---
 
-## P0 — 真正的渐进式照片加载
+# P0 — Native Preview Engine
 
-### 3. 打通 Swift -> Rust -> React 全链路 streaming
+## 1. 在 Tauri 主窗口内嵌 `QLPreviewView`
 
-当前 `photos:batch` 只在 Rust 已拿到完整 `Vec<CameraPhoto>` 后分批发送。下一步让 Swift helper 在枚举过程中直接发送 progress batch。
+- [ ] 在 Tauri 主进程加入 macOS QuickLookUI/AppKit bridge。
+- [ ] 使用 `QLPreviewView`，不使用独立 `QLPreviewPanel`。
+- [ ] Native preview 作为 `NSView` 嵌在现有 Nikon Connector 窗口中。
+- [ ] React 继续负责 toolbar/sidebar/filmstrip/inspector/rating/pick/filter。
+- [ ] React preview placeholder 与 native view frame 实时同步。
+- [ ] 处理窗口 resize、sidebar 折叠、filmstrip 高度变化、fullscreen。
+- [ ] 保证 native view 不遮挡其他 React 控件。
+- [ ] 验证 native preview 与现有键盘选片工作流共存。
 
-- [ ] Swift daemon 为 `list-photos` 输出 `type=progress` 照片批次。
-- [ ] Rust `HelperDaemon` 将 progress 消息暴露给调用方，而不是直接跳过。
-- [ ] Tauri 在收到 native batch 后立即 emit `photos:batch`。
-- [ ] terminal result 仅返回结束状态和 total/count 信息。
-- [ ] 支持取消旧相机/旧 generation 的照片流。
-- [ ] 保证同一 PTP session 上相机操作仍然串行。
+**第一道 Gate：**
 
-**验收：** 大卡枚举时，第一批照片可以在完整目录处理结束前出现在 UI。
+使用同一张高分辨率 JPG 和一张 Nikon Z6III NEF，对比：
 
-### 4. 将 `listPhotos` 降级为轻量 catalog 枚举
+```text
+Nikon Connector
+Finder Quick Look
+Preview.app
+```
 
-加载分层：
+必须验证：
 
-1. L0 catalog：文件名、handle、storage、大小、拍摄时间、类型。
-2. L1 thumbnail：当前可视窗口及 buffer。
-3. L2 display preview：当前选中图片和少量前后预取。
-4. L3 EXIF：选中项优先，空闲时渐进补齐。
-
-- [ ] `listPhotos` 阶段不再批量请求整卡 shooting metadata。
-- [ ] `listPhotos` 阶段不再固定预缓存前 80 张图片。
-- [ ] thumbnail 加载完全由 visible window 驱动。
-- [ ] preview 加载继续沿用 `previewQueue` / `previewScheduler`。
-- [ ] EXIF 改成按需请求，并缓存到 catalog。
-- [ ] UI 对 metadata/thumbnail/preview 的缺失状态分别展示 skeleton/fallback。
-
-**建议性能目标：**
-
-- App 已运行且相机已连接：首次可见照片尽量控制在 1–2 秒内。
-- 已缓存图片切换：< 100 ms。
-- 未缓存 JPG display preview：尽量 < 1 秒。
-- 连续按方向键时，后台最多保留当前 generation 所需请求。
+- fit-to-window 清晰度；
+- 100% 焦点细节；
+- 色彩观感；
+- EXIF orientation；
+- Retina 缩放；
+- 窗口 resize；
+- 快速切图；
+- 整个预览始终在软件内部。
 
 ---
 
-## P1 — Culling 工作流可靠性
+## 2. 本地主预览禁止中间转码
 
-### 5. 稳定照片身份与本地状态
+Native Quality 的硬规则：
 
-- [ ] 明确定义 `CameraPhoto.id` 的稳定性规则。
-- [ ] 本地 rating / pick 状态使用 camera + storage + object identity 形成稳定 key。
-- [ ] 相机拔插、App 重启后验证本地标记恢复。
-- [ ] 卡内文件变化后避免旧状态错误关联到新照片。
-- [ ] 为 cache 增加版本/失效策略。
+```text
+Original Local File
+        ↓
+    NSURL
+        ↓
+  QLPreviewView
+```
 
-### 6. 完善选择性导出
+- [ ] JPG/HEIC/PNG/TIFF 直接传原文件 URL。
+- [ ] NEF/NRW 直接传本地 RAW 文件 URL。
+- [ ] 本地主预览禁止为了显示而生成中间 JPEG/PNG。
+- [ ] `<img>` / WebKit 不作为 Native Quality 最终渲染器。
+- [ ] ImageIO 只用于 metadata、fallback、相机侧 preview 等辅助场景。
 
-- [ ] 导出增加逐项/整体进度事件。
-- [ ] 支持取消长时间导出。
-- [ ] 完善 duplicate 检测结果展示。
-- [ ] 导出结束后提供“在 Finder 中显示”。
-- [ ] 断连、空间不足、目标目录无权限时给出明确错误状态。
-- [ ] 导出过程中锁定会破坏 selection 的关键操作。
-
-**验收：** 2000+ 张卡完成选片后，可稳定只导出几十张 keeper，并清楚知道 copied / skipped / failed。
+**验收：** 有本地 original file path 时，主预览永远优先 native path。
 
 ---
 
-## P1 — 工程与回归基础
+# P0 — Local Photo Browser
 
-### 7. 建立三层 CI / Release Gate
+## 3. 支持加载本地图片目录
 
-每次 PR 至少运行：
+流程：
+
+```text
+Open Folder
+-> enumerate files
+-> build catalog
+-> Quick Look thumbnails
+-> select
+-> QLPreviewView(original)
+```
+
+首期格式：
+
+- [ ] JPG/JPEG
+- [ ] HEIC/HEIF
+- [ ] PNG
+- [ ] TIFF/TIF
+- [ ] NEF/NRW
+
+要求：
+
+- [ ] 使用原有 review workspace，不新建第二套浏览器 UI。
+- [ ] 使用现有 filmstrip virtualization。
+- [ ] 使用现有筛选、排序、Pick/Reject、rating 基础能力。
+- [ ] 第一版先支持一个文件夹的直接子文件扫描。
+- [ ] 本地图片切换直接进入 Native Quality。
+- [ ] 文件消失/移动时给出明确状态。
+
+---
+
+## 4. 本地 filmstrip 缩略图走 `QLThumbnailGenerator`
+
+- [ ] 使用 QuickLookThumbnailing 生成本地 thumbnail。
+- [ ] 根据 Retina backing scale 请求实际像素密度。
+- [ ] thumbnail cache key 包含 path + file size + modified time + requested size + scale。
+- [ ] 文件变更后自动失效旧 thumbnail。
+- [ ] 只加载 visible window + buffer 范围。
+- [ ] 2000+ 图片继续保持 DOM virtualization。
+
+**目标：** 本地 filmstrip 清晰度、orientation 和 Finder 缩略图一致性达到系统级表现。
+
+---
+
+# P0 — Unified Photo Source
+
+## 5. 统一 Camera / Local / Exported 数据模型
+
+目标模型：
+
+```ts
+type PhotoSource =
+  | {
+      kind: "camera";
+      cameraId: string;
+      storageId?: string;
+      objectHandle?: number;
+    }
+  | {
+      kind: "local";
+      filePath: string;
+    }
+  | {
+      kind: "exported";
+      filePath: string;
+      sourceCameraId?: string;
+      sourceObjectHandle?: number;
+    };
+```
+
+显示能力：
+
+```ts
+type DisplayAsset = {
+  source: PhotoSource;
+  localFilePath?: string;
+  reviewPreviewUrl?: string;
+  thumbnailUrl?: string;
+  quality: "review" | "native";
+};
+```
+
+路由规则：
+
+```text
+localFilePath exists
+    ↓
+Native Quality / QLPreviewView
+
+no localFilePath
+    ↓
+Camera Review Quality
+```
+
+- [ ] 切换渲染路径不改变 photo selection identity。
+- [ ] 切换质量不丢失 rating / Pick / Reject。
+- [ ] 后续 RAW+JPG pairing 也建立在同一 source/display 模型上。
+
+---
+
+# P0 — Camera -> Native Quality
+
+## 6. 支持下载原图后高清查看
+
+相机初筛阶段保持快速 preview。
+
+用户明确要求高清查看时：
+
+```text
+Camera Photo
+-> Download Original
+-> Managed Local Cache
+-> localFilePath
+-> QLPreviewView
+-> Native Quality
+```
+
+- [ ] 新增下载原图用于预览的命令。
+- [ ] 保留 camera/storage/objectHandle 等 source identity。
+- [ ] 下载完成前继续显示 Review Quality。
+- [ ] 完整下载成功后再切 Native Quality。
+- [ ] 失败/取消不破坏原有相机 preview。
+- [ ] 不因为左右快速切图自动下载大量 NEF 原图。
+- [ ] managed original cache 可清理、可失效、有大小策略。
+
+**验收：** 下载后的 NEF/JPG 与 Finder Quick Look / Preview.app 使用同一份文件比较，预览不再受当前 camera display preview 清晰度限制。
+
+---
+
+## 7. 批量导出图片后直接进入 Native Quality
+
+```text
+Selected Camera Photos
+-> Export Originals
+-> User Folder
+-> exported localFilePath
+-> QLPreviewView
+```
+
+- [ ] 每个成功导出的结果返回最终绝对文件路径。
+- [ ] 导出后将路径挂回对应 catalog item。
+- [ ] 点击已导出图片时直接读取导出 original。
+- [ ] 不再复制一份预览 JPEG 到 app cache 才显示。
+- [ ] 保留 “Show in Finder”。
+- [ ] 后续补齐 export progress / cancel / duplicate / error handling。
+
+---
+
+# P0 — Native Quality Regression Gate
+
+## 8. 固化清晰度与色彩测试集
+
+至少准备：
+
+- [ ] 高分辨率 sRGB JPG
+- [ ] Display P3 JPG/HEIC
+- [ ] 带 EXIF orientation 的竖图
+- [ ] 超大 JPG
+- [ ] 透明 PNG
+- [ ] TIFF
+- [ ] Nikon Z6III NEF
+- [ ] 相机导出的 JPG
+- [ ] 相机导出的 NEF
+
+每次 Native Preview 相关变更都比较：
+
+```text
+Nikon Connector
+vs Finder Quick Look
+vs Preview.app
+```
+
+检查：
+
+- [ ] fit 清晰度
+- [ ] 100% 细节
+- [ ] orientation
+- [ ] 色彩
+- [ ] Retina scaling
+- [ ] resize
+- [ ] 连续切图
+- [ ] fullscreen
+
+---
+
+# P1 — Camera Performance
+
+Native Preview Foundation 通过后继续优化相机初筛性能。
+
+## 9. Swift -> Rust -> React 真 streaming
+
+当前 `photos:batch` 仍然是在 Rust 拿到完整 native catalog 后再 chunk。
+
+- [ ] Swift daemon 在 `list-photos` 过程中直接 emit progress batches。
+- [ ] Rust 不再跳过 helper progress。
+- [ ] Tauri 收到 native batch 后立即 emit `photos:batch`。
+- [ ] terminal result 只返回 count/completion。
+- [ ] 支持旧 generation 取消/忽略。
+
+**验收：** 大卡第一批照片无需等待整卡枚举结束。
+
+---
+
+## 10. 轻量 Camera Catalog
+
+相机加载分层：
+
+```text
+L0 catalog     filename/handle/storage/size/date/type
+L1 thumbnail   visible window + buffer
+L2 preview     selected + small lookahead
+L3 EXIF        selected first, lazy enrichment
+```
+
+- [ ] `listPhotos` 不再整卡请求 shooting metadata。
+- [ ] `listPhotos` 不再固定缓存前 80 张。
+- [ ] thumbnail 完全 viewport-driven。
+- [ ] selected preview 最高优先级。
+- [ ] EXIF lazy load。
+
+---
+
+# P1 — Release Ready
+
+## 11. Swift camera helper Tauri sidecar
+
+- [ ] release helper build。
+- [ ] helper 作为 Tauri sidecar/external binary 打包。
+- [ ] Runtime 优先寻找 app bundle helper。
+- [ ] 保留 `NIKON_CAMERA_HELPER` 开发 override。
+- [ ] 删除发布版本对源码 `.build/debug` 路径依赖。
+- [ ] DMG 干净环境真机 smoke test。
+
+## 12. Signing / Notarization
+
+- [ ] Developer ID signing。
+- [ ] Hardened Runtime / entitlements。
+- [ ] helper + main app 同一发布签名链路。
+- [ ] Apple notarization。
+- [ ] stapling。
+- [ ] Gatekeeper 验证。
+
+---
+
+# P1 — Export Reliability
+
+## 13. 导出可靠性
+
+- [ ] 整体/逐项 progress。
+- [ ] cancel。
+- [ ] duplicate detection。
+- [ ] copied / skipped / failed 明细。
+- [ ] 空间不足处理。
+- [ ] 目录权限错误处理。
+- [ ] 相机断连恢复。
+- [ ] Finder handoff。
+
+---
+
+# P1 — Engineering Gate
+
+## 14. CI
+
+PR 至少运行：
 
 - [ ] `bun run lint`
 - [ ] `bun run test`
@@ -116,113 +357,90 @@
 - [ ] `swift test --package-path native/macos-camera-helper`
 - [ ] release helper build smoke check
 
-发布前额外运行：
-
-- [ ] Tauri app/DMG build。
-- [ ] updater metadata 校验。
-- [ ] helper 是否存在于最终 `.app` 内的结构检查。
-- [ ] 签名、公证检查。
-
-### 8. 固化真机回归清单
-
-至少覆盖：
-
-- [ ] 冷启动识别 Z6III。
-- [ ] 相机先开后启动 App。
-- [ ] App 先开后连接相机。
-- [ ] 100 / 1000 / 2000+ 张照片目录。
-- [ ] JPG-only / NEF-only / RAW+JPG。
-- [ ] 快速连续左右切图。
-- [ ] 放大查看焦点细节。
-- [ ] Pick / Reject / Rating 后重启恢复。
-- [ ] 导出单张 / 多张 / 高星筛选结果。
-- [ ] 浏览期间拔线再重连。
-
 ---
 
-## P2 — Rating 写回 Nikon
+# P2 — Nikon Metadata / RAW Workflow
 
-### 9. 完成 Nikon SDK Rating API 验证
+## 15. Nikon Rating Write-back
 
-- [ ] 在官方 Nikon Remote Module SDK 2.0.0 中确认 Z6III rating capability/API。
-- [ ] 真机验证 0–5 星写回后能在相机/NX Studio 中看到。
-- [ ] 将 SDK 能力检测从硬编码 `false` 改成真实 capability probe。
-- [ ] Rating command 使用真实 camera identity，而不是从 mock catalog 查 photo。
+- [ ] 验证 Nikon Remote Module SDK 2.0.0 Z6III rating API。
+- [ ] 真实 capability probe。
+- [ ] rating command 使用 camera identity，而不是 mock catalog 查找。
+- [ ] SDK 不支持时继续 local-only rating。
+- [ ] UI 区分 Local / Camera metadata 保存状态。
 
-建议 command 契约演进为：
-
-```ts
-setPhotoRating({
-  cameraId,
-  storageId,
-  objectHandle,
-  photoId,
-  rating,
-})
-```
-
-- [ ] SDK 不支持时继续保留 local-only rating。
-- [ ] UI 明确区分 Local / Camera metadata 两种保存状态。
-
----
-
-## P2 — 产品增强
-
-### 10. RAW + JPG Pair
+## 16. RAW + JPG Pair
 
 - [ ] 同 stem `.NEF + .JPG` 合并为一个 review item。
-- [ ] JPG 优先作为快速 display preview。
-- [ ] rating / pick 一次作用于 pair。
-- [ ] 导出支持只导 RAW、只导 JPG、RAW+JPG。
+- [ ] camera review 阶段优先 JPG/embedded preview。
+- [ ] 本地存在 original 后统一走 Native Quality。
+- [ ] rating / Pick 一次作用于 pair。
+- [ ] 导出支持 RAW / JPG / RAW+JPG。
 
-### 11. Shooting Review
+## 17. Shooting Review
 
-- [ ] EXIF 异步补齐后更新 shooting review。
-- [ ] 按 lens / focal length / aperture / shutter / ISO 聚合。
-- [ ] 将 keeper rate 与拍摄参数关联。
-- [ ] 标记高 ISO、低快门等风险区间。
+- [ ] lens / focal length / aperture / shutter / ISO 聚合。
+- [ ] keeper rate 与拍摄参数关联。
+- [ ] 高 ISO / 低快门风险提示。
 
 ---
 
-## 建议版本节奏
+# 建议版本节奏
 
-### v0.2.0 — Production Foundation
+## v0.2.0 — Native Photo Browser
 
-完成：
+核心交付：
 
-- sidecar 打包
-- 签名/公证
-- 真 streaming catalog
-- 分层 thumbnail/preview/EXIF
-- CI + 真机回归基线
+- embedded `QLPreviewView`
+- 本地目录加载
+- Quick Look thumbnails
+- 本地 original Native Quality
+- camera original download -> Native Quality
+- export original -> Native Quality
+- Finder Quick Look + Preview.app regression gate
 
-### v0.3.0 — Culling & Export
+## v0.3.0 — Fast Camera Culling
 
-完成：
+核心交付：
 
-- 稳定本地 selection 状态
-- 导出进度/取消/错误恢复
-- Finder handoff
-- 大卡选片体验打磨
+- true native catalog streaming
+- lightweight camera catalog
+- viewport thumbnails
+- lazy EXIF
+- 大卡浏览性能
 
-### v0.4.0 — Nikon Metadata & RAW Workflow
+## v0.4.0 — Distribution & Export Reliability
 
-完成：
+核心交付：
 
-- Nikon rating write-back（SDK 验证通过后）
+- helper sidecar
+- signing/notarization
+- CI/release gate
+- export progress/cancel/error recovery
+
+## v0.5.0 — Nikon Metadata & RAW Workflow
+
+核心交付：
+
+- Nikon rating write-back（SDK 支持时）
 - RAW+JPG pairing
-- shooting review 深化
+- shooting review
 
 ---
 
-## 当前执行顺序
+# 当前执行顺序
 
-1. **Tauri sidecar / DMG 可分发性**
-2. **Swift -> Rust -> React 真 streaming**
-3. **轻量 catalog + viewport thumbnail + lazy EXIF**
-4. **CI + 真机回归**
-5. **导出可靠性**
-6. **Nikon SDK rating**
-7. **RAW+JPG 与 Shooting Review**
+1. **QLPreviewView Tauri 内嵌 Spike：JPG + NEF**
+2. **Native Preview Bridge 稳定化**
+3. **本地目录 + QLThumbnailGenerator**
+4. **统一 Camera / Local / Exported source model**
+5. **Camera original download -> Native Quality**
+6. **Batch export -> Native Quality**
+7. **Native Quality regression gate**
+8. **Camera streaming / lightweight catalog**
+9. **Sidecar / signing / CI / export reliability**
+10. **Nikon SDK / RAW+JPG / Shooting Review**
 
-前四项完成前，优先控制新 UI/功能范围，把基础链路做稳定、做快、做到可发布。
+下一阶段第一目标已经从“先发布”调整为：
+
+> **先建立一条长期稳定、没有清晰度妥协的 macOS Native Preview 基础链路，再让相机、本地和导出工作流全部接入它。**
