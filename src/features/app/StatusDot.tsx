@@ -11,6 +11,6 @@ const dotTone: Record<CameraConnectionState, string> = {
 
 export function StatusDot({ state }: { state: CameraConnectionState }) {
   return (
-    <span aria-hidden="true" className={`h-2 w-2 rounded-full ${dotTone[state]}`} />
+    <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dotTone[state]} opacity-75`} />
   );
 }

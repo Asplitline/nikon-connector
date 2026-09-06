@@ -4,18 +4,16 @@ import { ConnectionDiagnosticPanel } from "../photos/ConnectionPanels";
 import type { ConnectionDiagnostics } from "../photos/connectionDiagnostics";
 import { ExportPanel } from "../photos/ExportPanel";
 import { formatConnection } from "../photos/labels";
-import { ReviewControls } from "../photos/ReviewControls";
 import type { ShootingReview } from "../photos/shootingReview";
 import { ShootingReviewPanel } from "../photos/ShootingReviewPanel";
 import { StatusDot } from "./StatusDot";
 import type { CameraConnectionState, CameraDevice } from "../photos/types";
-import type { CatalogControls, ExportControls, LibraryStats } from "./uiTypes";
+import type { ExportControls, LibraryStats } from "./uiTypes";
 import type { Locale, t as translate } from "../../i18n";
 
 // 左侧栏：设备状态、连接检查、筛选排序、导出、复盘、性能与图库统计
 export function SidePanel({
   activeCamera,
-  catalogControls,
   connectionLabel,
   connectionState,
   diagnostics,
@@ -31,7 +29,6 @@ export function SidePanel({
   tr,
 }: {
   activeCamera: CameraDevice | null;
-  catalogControls: CatalogControls;
   connectionLabel: string;
   connectionState: CameraConnectionState;
   diagnostics: ConnectionDiagnostics;
@@ -50,7 +47,7 @@ export function SidePanel({
   ) => string;
 }) {
   return (
-    <aside className="min-w-0 backdrop-saturate-[1.05] min-h-0 overflow-y-auto border-r border-line bg-panel px-5 py-5 max-nav:grid max-nav:grid-cols-[minmax(0,1.15fr)_minmax(180px,0.85fr)_minmax(160px,0.7fr)] max-nav:items-start max-nav:gap-4 max-nav:border-r-0 max-nav:border-b max-nav:p-4 max-sm:grid-cols-1">
+    <aside className="min-w-0 backdrop-saturate-[1.05] min-h-0 overflow-y-auto border-r border-line bg-panel px-4 py-4 max-nav:grid max-nav:grid-cols-[minmax(0,1.15fr)_minmax(180px,0.85fr)_minmax(160px,0.7fr)] max-nav:items-start max-nav:gap-4 max-nav:border-r-0 max-nav:border-b max-nav:p-4 max-sm:grid-cols-1">
       <div className="brand-row flex items-start justify-between gap-3 max-sm:flex-col">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
@@ -66,10 +63,10 @@ export function SidePanel({
         </span>
       </div>
 
-      <section className="mt-8 space-y-3 max-nav:mt-0">
+      <section className="mt-6 space-y-3 max-nav:mt-0">
         <p className="section-label">{tr("connection.device")}</p>
         {activeCamera && activeCamera.connection !== "mock" ? (
-          <div className="min-w-0 rounded-lg border border-line bg-surface p-3.5 shadow-[0_1px_0_color-mix(in_oklch,var(--app-ink)_4%,transparent)]">
+          <div className="min-w-0 rounded-lg border border-line bg-surface p-3 shadow-[0_1px_0_color-mix(in_oklch,var(--app-ink)_4%,transparent)]">
             <p
               className="min-w-0 wrap-anywhere text-base font-semibold leading-snug"
               title={activeCamera.name}
@@ -93,16 +90,6 @@ export function SidePanel({
         onOpen={onOpenConnectionCheck}
       />
 
-      <ReviewControls
-        disabled={!isReviewReady}
-        filter={catalogControls.filter}
-        locale={locale}
-        onFilterChange={catalogControls.onFilterChange}
-        onSortChange={catalogControls.onSortChange}
-        sort={catalogControls.sort}
-        visibleCount={isReviewReady ? library.visibleCount : 0}
-      />
-
       <ExportPanel
         disabled={!isReviewReady || exportControls.selection.count === 0}
         destination={exportControls.destination}
@@ -124,7 +111,7 @@ export function SidePanel({
 
       <PerformancePanel locale={locale} metrics={performanceMetrics} />
 
-      <section className="mt-8 space-y-3 max-nav:mt-0">
+      <section className="mt-6 space-y-3 max-nav:mt-0">
         <p className="section-label">{tr("connection.library")}</p>
         <dl className="grid grid-cols-2 gap-3 text-sm [&>div]:min-w-0 [&>div]:shadow-[0_1px_0_color-mix(in_oklch,var(--app-ink)_4%,transparent)]">
           <div className="rounded-md bg-surface px-3 py-3">
@@ -143,7 +130,7 @@ export function SidePanel({
       </section>
 
       <button
-        className="settings-entry mt-8 w-full rounded-lg border border-line bg-surface px-3.5 py-3 text-left text-sm font-semibold text-ink transition hover:bg-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        className="settings-entry mt-6 w-full rounded-lg border border-line bg-surface px-3.5 py-3 text-left text-sm font-semibold text-ink transition hover:bg-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         onClick={onOpenSettings}
         type="button"
       >

@@ -2,6 +2,7 @@ import type { CameraPhoto } from "./types";
 
 export type ExportMode =
   | "visible"
+  | "picked"
   | "rating_3_plus"
   | "rating_4_plus"
   | "rating_5"
@@ -56,6 +57,10 @@ function selectPhotosForExport(input: ExportSelectionInput) {
 
   if (input.mode === "rating_5") {
     return input.photos.filter((photo) => photo.rating === 5);
+  }
+
+  if (input.mode === "picked") {
+    return input.photos.filter((photo) => photo.pickStatus === "picked");
   }
 
   return input.visiblePhotos;

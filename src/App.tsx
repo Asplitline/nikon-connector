@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppDialogs } from "./features/app/AppDialogs";
-import { SidePanel } from "./features/app/SidePanel";
 import { WorkspacePanel } from "./features/app/WorkspacePanel";
 import { useAppUpdates } from "./features/app/useAppUpdates";
 import { useCameraSession } from "./features/app/useCameraSession";
@@ -9,11 +8,10 @@ import { useGlobalErrorLog } from "./features/app/useGlobalErrorLog";
 import { useReviewKeyboard } from "./features/app/useReviewKeyboard";
 import { useReviewState } from "./features/app/useReviewState";
 import type { ThemeMode } from "./features/app/uiTypes";
-import { usePerformanceMetrics } from "./features/performance/usePerformanceMetrics";
-import { selectPhoto } from "./features/photos/catalog";
+import { getCatalogView, selectPhoto, selectPhotoByOffset } from "./features/photos/catalog";
 import type { PhotoCatalogFilter, PhotoCatalogSort } from "./features/photos/catalog";
 import type { ExportMode } from "./features/photos/exportPlan";
-import type { CameraPhoto, Rating } from "./features/photos/types";
+import type { CameraPhoto, PickStatus, Rating } from "./features/photos/types";
 import { applyZoomAction, createFitZoomState } from "./features/photos/zoom";
 import type { PhotoZoomState, ZoomAction } from "./features/photos/zoom";
 import { defaultLocale, type Locale, t } from "./i18n";
@@ -22,14 +20,15 @@ import "./index.css";
 function App() {
   // 本地 UI 状态:偏好、弹窗开关、筛选排序、导出设置、缩放
   const [locale, setLocale] = useState<Locale>(defaultLocale);
-  const [theme, setTheme] = useState<ThemeMode>("light");
+  const [theme, setTheme] = useState<ThemeMode>("dark");
   const [zoom, setZoom] = useState<PhotoZoomState>(() => createFitZoomState());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [connectionCheckOpen, setConnectionCheckOpen] = useState(false);
   const [catalogFilter, setCatalogFilter] = useState<PhotoCatalogFilter>("all");
   const [catalogSort, setCatalogSort] = useState<PhotoCatalogSort>("captured_asc");
-  const [exportMode, setExportMode] = useState<ExportMode>("visible");
+  const [exportMode, setExportMode] = useState<ExportMode>("picked");
   const [exportDestination, setExportDestination] = useState("");
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [previewWindow, setPreviewWindow] = useState<{
     endIndex: number;
     startIndex: number;
@@ -43,7 +42,6 @@ function App() {
 
   // 业务副作用:全部封在 hook 内,容器层只消费结果
   useGlobalErrorLog();
-  const performanceMetrics = usePerformanceMetrics();
   const camera = useCameraSession(locale);
   const updates = useAppUpdates(locale, camera.setStatus);
 
@@ -61,8 +59,15 @@ function App() {
 
   // useCameraSession 每次渲染返回新对象字面量,直接依赖 camera 会让下面的
   // callback/effect 每渲染都失效;这里只取需要的稳定引用作为依赖
-  const { loadCamera, rebuildPreviewQueue, runExport, setCatalog, setStatus, updateRating } =
-    camera;
+  const {
+    loadCamera,
+    rebuildPreviewQueue,
+    runExport,
+    setCatalog,
+    setStatus,
+    updatePickStatus,
+    updateRating,
+  } = camera;
 
   const { openImageCaptureApp, runAction } = useDiagnosticActions({
     locale,
@@ -115,9 +120,26 @@ function App() {
     [setCatalog],
   );
 
+  const handleNavigatePhoto = useCallback(
+    (offset: -1 | 1) => {
+      setZoom(createFitZoomState());
+      setCatalog((current) => {
+        const visible = getCatalogView(current, { filter: catalogFilter, sort: catalogSort });
+        const next = selectPhotoByOffset(visible, offset);
+        return { ...current, selectedPhotoId: next.selectedPhotoId };
+      });
+    },
+    [catalogFilter, catalogSort, setCatalog],
+  );
+
   const handleRate = useCallback(
     (photo: CameraPhoto, rating: Rating) => void updateRating(photo, rating),
     [updateRating],
+  );
+
+  const handleMark = useCallback(
+    (photo: CameraPhoto, pickStatus: PickStatus) => updatePickStatus(photo, pickStatus),
+    [updatePickStatus],
   );
 
   const handleExport = useCallback(() => {
@@ -175,7 +197,9 @@ function App() {
   useReviewKeyboard({
     connectionState: camera.connectionState,
     filter: catalogFilter,
+    onMark: handleMark,
     onRate: handleRate,
+    onToggleInspector: () => setInspectorOpen((open) => !open),
     selectedPhoto: review.selectedPhoto,
     setCatalog,
     setZoom,
@@ -187,38 +211,32 @@ function App() {
       className="bg-shell h-screen min-w-0 overflow-hidden bg-canvas text-ink max-sm:h-auto max-sm:min-h-screen max-sm:overflow-auto"
       data-theme={theme}
     >
-      <div className="grid h-full min-h-0 min-w-0 grid-cols-[248px_minmax(0,1fr)] max-nav:grid-cols-1 max-nav:grid-rows-[auto_minmax(0,1fr)] max-sm:min-h-0">
-        <SidePanel
+      <div className="h-full min-h-0 min-w-0 max-sm:min-h-0">
+        <WorkspacePanel
           activeCamera={camera.activeCamera}
           catalogControls={catalogControls}
           connectionLabel={review.connectionLabel}
           connectionState={camera.connectionState}
           diagnostics={review.diagnostics}
           exportControls={exportControls}
-          isReviewReady={review.isReviewReady}
-          library={library}
-          locale={locale}
-          onOpenConnectionCheck={() => setConnectionCheckOpen(true)}
-          onOpenSettings={() => setSettingsOpen(true)}
-          performanceMetrics={performanceMetrics}
-          shootingReview={review.shootingReview}
-          status={camera.status}
-          tr={tr}
-        />
-
-        <WorkspacePanel
-          diagnostics={review.diagnostics}
           isRatingDisabled={camera.connectionState !== "connected"}
           isReviewReady={review.isReviewReady}
+          inspectorOpen={inspectorOpen}
+          library={library}
           locale={locale}
+          onNavigatePhoto={handleNavigatePhoto}
+          onMark={handleMark}
           onOpenConnectionCheck={() => setConnectionCheckOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
           onPreviewWindowChange={handlePreviewWindowChange}
           onPrimaryDiagnosticAction={handlePrimaryDiagnosticAction}
           onRate={handleRate}
           onSelectPhoto={handleSelectPhoto}
+          onToggleInspector={() => setInspectorOpen((open) => !open)}
           onZoomAction={handleZoomAction}
           ratingError={camera.ratingError}
           selection={selection}
+          shootingReview={review.shootingReview}
           status={camera.status}
           tr={tr}
           zoom={zoom}

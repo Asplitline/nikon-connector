@@ -1,8 +1,10 @@
-import type { Rating } from "./types";
+import type { PickStatus, Rating } from "./types";
 
 export type PhotoReviewShortcut =
   | { type: "move"; offset: -1 | 1 }
   | { type: "edge"; edge: "first" | "last" }
+  | { type: "inspector" }
+  | { type: "mark"; status: Exclude<PickStatus, "none"> }
   | { type: "rate"; rating: Rating }
   | { type: "zoom"; action: "in" | "out" | "fit" | "actual" };
 
@@ -13,6 +15,14 @@ export function getPhotoReviewShortcut(key: string): PhotoReviewShortcut | null 
 
   if (key === "ArrowLeft") {
     return { type: "move", offset: -1 };
+  }
+
+  if (key === "ArrowUp") {
+    return { type: "zoom", action: "in" };
+  }
+
+  if (key === "ArrowDown") {
+    return { type: "zoom", action: "out" };
   }
 
   if (key === "Home") {
@@ -27,6 +37,10 @@ export function getPhotoReviewShortcut(key: string): PhotoReviewShortcut | null 
     return { type: "rate", rating: 0 };
   }
 
+  if (key === "0") {
+    return { type: "rate", rating: 0 };
+  }
+
   if (key === "+" || key === "=") {
     return { type: "zoom", action: "in" };
   }
@@ -37,6 +51,18 @@ export function getPhotoReviewShortcut(key: string): PhotoReviewShortcut | null 
 
   if (key.toLowerCase() === "f") {
     return { type: "zoom", action: "fit" };
+  }
+
+  if (key.toLowerCase() === "i") {
+    return { type: "inspector" };
+  }
+
+  if (key.toLowerCase() === "p") {
+    return { type: "mark", status: "picked" };
+  }
+
+  if (key.toLowerCase() === "x") {
+    return { type: "mark", status: "rejected" };
   }
 
   if (key.toLowerCase() === "z") {

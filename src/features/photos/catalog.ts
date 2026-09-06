@@ -1,4 +1,4 @@
-import type { CameraPhoto, PhotoCatalogState, Rating } from "./types";
+import type { CameraPhoto, PhotoCatalogState, PickStatus, Rating } from "./types";
 
 export type PhotoCatalogFilter =
   | "all"
@@ -99,6 +99,19 @@ export function updatePhotoRating(
     ...state,
     photos: state.photos.map((photo) =>
       photo.id === photoId ? { ...photo, rating } : photo,
+    ),
+  };
+}
+
+export function updatePhotoPickStatus(
+  state: PhotoCatalogState,
+  photoId: string,
+  pickStatus: PickStatus,
+): PhotoCatalogState {
+  return {
+    ...state,
+    photos: state.photos.map((photo) =>
+      photo.id === photoId ? { ...photo, pickStatus } : photo,
     ),
   };
 }

@@ -72,6 +72,10 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         let files = cameraFiles(in: items)
         log("list-photos catalogFinished=\(contentCatalogFinished) contentItems=\((camera.contents ?? []).count) mediaFiles=\((camera.mediaFiles ?? []).count) supportedFiles=\(files.count)")
         logCameraState(camera, context: "list-photos-after-catalog")
+        let shootingMetadata = shootingMetadataByFile(
+            files: files,
+            timeout: min(2.0, max(0.5, timeout / 4.0))
+        )
         let cachedImages = cacheImages(
             for: files,
             from: camera,
@@ -84,6 +88,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         let photos = flatten(
             items: items,
             cameraId: cameraId,
+            shootingMetadata: shootingMetadata,
             cachedImages: cachedImages
         )
         closeSessionIfNeeded(camera)
@@ -258,10 +263,15 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
 
     func deviceDidBecomeReady(withCompleteContentCatalog device: ICCameraDevice) {
         contentCatalogFinished = true
-        log("content catalog ready name=\(device.name ?? "Unknown") items=\((device.contents ?? []).count)")
+        let items = readableItems(for: device)
+        log("content catalog ready name=\(device.name ?? "Unknown") items=\(items.count) supportedFiles=\(cameraFiles(in: items).count)")
     }
 
     func cameraDevice(_ camera: ICCameraDevice, didAdd items: [ICCameraItem]) {
+        guard verboseItemLogging else {
+            return
+        }
+
         log("camera didAdd items name=\(camera.name ?? "Unknown") count=\(items.count)")
         for item in items.prefix(20) {
             log("item added \(itemDescription(item))")
@@ -348,8 +358,12 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         }
 
         let deadline = Date().addingTimeInterval(timeout)
-        while !contentCatalogFinished && !hasReadableItems(camera) && Date() < deadline {
+        while !contentCatalogFinished && Date() < deadline {
             RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.1)))
+        }
+
+        if !contentCatalogFinished && hasReadableItems(camera) {
+            log("content catalog wait timed out; using partial readable items contents=\((camera.contents ?? []).count) mediaFiles=\((camera.mediaFiles ?? []).count)")
         }
     }
 
@@ -405,6 +419,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         items: [ICCameraItem],
         cameraId: String,
         storageId: String? = nil,
+        shootingMetadata: [ObjectIdentifier: ShootingMetadata] = [:],
         cachedImages: [ObjectIdentifier: CachedImagePaths]
     ) -> [CameraPhoto] {
         items.flatMap { item in
@@ -413,6 +428,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
                     items: folder.contents ?? [],
                     cameraId: cameraId,
                     storageId: storageId ?? folder.name,
+                    shootingMetadata: shootingMetadata,
                     cachedImages: cachedImages
                 )
             }
@@ -426,6 +442,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             let objectHandle = file.ptpObjectHandle == 0 ? nil : String(file.ptpObjectHandle)
             let capturedAt = file.creationDate.map { ISO8601DateFormatter().string(from: $0) } ?? ""
             let cachedImage = cachedImages[ObjectIdentifier(file)]
+            let metadata = shootingMetadata[ObjectIdentifier(file)]
             return [CameraPhoto(
                 id: photoIdentifier(for: file, cameraId: cameraId),
                 cameraId: cameraId,
@@ -442,13 +459,62 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
                 storageId: storageId,
                 canDownloadOriginal: true,
                 hasEmbeddedPreview: false,
-                aperture: nil,
-                exposureCompensation: nil,
-                focalLength: nil,
-                iso: nil,
-                shutterSpeed: nil
+                aperture: metadata?.aperture,
+                exposureCompensation: metadata?.exposureCompensation,
+                focalLength: metadata?.focalLength,
+                iso: metadata?.iso,
+                shutterSpeed: metadata?.shutterSpeed
             )]
         }
+    }
+
+    private func shootingMetadataByFile(
+        files: [ICCameraFile],
+        timeout: TimeInterval
+    ) -> [ObjectIdentifier: ShootingMetadata] {
+        guard !files.isEmpty else {
+            return [:]
+        }
+
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var metadataByFile: [ObjectIdentifier: ShootingMetadata] = [:]
+
+        for file in files {
+            let fileIdentifier = ObjectIdentifier(file)
+            if let metadata = file.metadata {
+                metadataByFile[fileIdentifier] = ShootingMetadata.from(metadata)
+                continue
+            }
+
+            group.enter()
+            file.requestMetadataDictionary(options: nil) { metadata, error in
+                if let error {
+                    self.log("metadata request failed file=\(file.name ?? "Unknown") error=\(error)")
+                }
+                let shootingMetadata = ShootingMetadata.from(metadata)
+                lock.lock()
+                metadataByFile[fileIdentifier] = shootingMetadata
+                lock.unlock()
+                group.leave()
+            }
+        }
+
+        let result = group.wait(timeout: .now() + timeout)
+        let resolvedCount: Int = {
+            lock.lock()
+            defer { lock.unlock() }
+            return metadataByFile.count
+        }()
+        if result == .timedOut {
+            log("metadata request timed out files=\(files.count) resolved=\(resolvedCount) timeout=\(timeout)s")
+        } else {
+            log("metadata request finished files=\(files.count) resolved=\(resolvedCount)")
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+        return metadataByFile
     }
 
     private func cameraFiles(in items: [ICCameraItem]) -> [ICCameraFile] {
@@ -706,6 +772,8 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
 
     private let supportedExtensions: Set<String> = ["jpg", "jpeg", "nef", "nrw", "heif", "hif"]
     private let maxInitialCachedFiles = 80
+    private let verboseItemLogging =
+        ProcessInfo.processInfo.environment["NIKON_CAMERA_HELPER_VERBOSE_ITEMS"] == "1"
 
     private func isNikonOrZ6(_ camera: CameraDevice) -> Bool {
         [camera.name, camera.model].contains { value in

@@ -79,7 +79,7 @@ export function ExportPanel({
 
       <button
         className={buttonClass("primary", { compact: true })}
-        disabled={disabled || !destination.trim()}
+        disabled={disabled || exportCount === 0 || !destination.trim()}
         onClick={onExport}
         type="button"
       >

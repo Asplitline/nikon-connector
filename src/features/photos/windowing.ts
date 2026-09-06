@@ -6,6 +6,8 @@ export interface WindowRangeOptions {
   gap?: number;
   // 单项宽度（px），不含 gap
   itemWidth: number;
+  // 单次最多渲染的项数，避免超宽视口把大量缩略图塞进 DOM
+  maxItems?: number;
   // 可视区两侧额外多渲染的项数，滚动时不至于露白
   overscan?: number;
   scrollLeft: number;
@@ -24,10 +26,12 @@ export interface WindowRange {
 }
 
 const defaultOverscan = 4;
+const defaultMaxItems = 40;
 
 export function computeWindowRange({
   gap = 0,
   itemWidth,
+  maxItems = defaultMaxItems,
   overscan = defaultOverscan,
   scrollLeft,
   total,
@@ -44,9 +48,14 @@ export function computeWindowRange({
   const firstVisible = Math.floor(safeScrollLeft / stride);
   // 可视区宽度非正时至少渲染一项，否则选中项可能不可见
   const visibleCount = Math.max(1, Math.ceil(Math.max(0, viewportWidth) / stride) + 1);
+  const desiredCount = Math.min(total, Math.max(1, maxItems));
 
   const startIndex = clamp(firstVisible - overscan, 0, Math.max(0, total - 1));
-  const endIndex = clamp(firstVisible + visibleCount + overscan, startIndex + 1, total);
+  const endIndex = clamp(
+    firstVisible + visibleCount + overscan,
+    startIndex + 1,
+    Math.min(total, startIndex + desiredCount),
+  );
 
   // 占位宽度按 stride 整数倍算：首/尾占位都紧邻已渲染项，各自需要保留自己的
   // 那个 gap；只有整条内容的最末尾不带 gap，而那一份由渲染项自身承担
@@ -60,12 +69,14 @@ export function computeWindowRange({
 
 // 让指定项进入窗口所需的滚动位置，用于键盘换图时同步胶片条
 export function scrollOffsetForIndex({
+  edgePadding = 0,
   gap = 0,
   index,
   itemWidth,
   scrollLeft,
   viewportWidth,
 }: {
+  edgePadding?: number;
   gap?: number;
   index: number;
   itemWidth: number;
@@ -80,14 +91,15 @@ export function scrollOffsetForIndex({
   const safeIndex = Math.max(0, index);
   const itemStart = safeIndex * stride;
   const itemEnd = itemStart + itemWidth;
+  const safeEdgePadding = Math.max(0, edgePadding);
   const viewStart = Math.max(0, scrollLeft);
   const viewEnd = viewStart + Math.max(0, viewportWidth);
 
-  if (itemStart < viewStart) {
-    return itemStart;
+  if (itemStart - safeEdgePadding < viewStart) {
+    return Math.max(0, itemStart - safeEdgePadding);
   }
-  if (itemEnd > viewEnd) {
-    return Math.max(0, itemEnd - Math.max(0, viewportWidth));
+  if (itemEnd + safeEdgePadding > viewEnd) {
+    return Math.max(0, itemEnd + safeEdgePadding - Math.max(0, viewportWidth));
   }
   return viewStart;
 }

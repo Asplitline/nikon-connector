@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyLocalPickStatuses,
   applyLocalRatings,
   isLocalOnlyRatingError,
+  readLocalPickStatuses,
   readLocalRatings,
+  writeLocalPickStatus,
   writeLocalRating,
 } from "./localRatings";
 import type { CameraPhoto } from "./types";
@@ -85,6 +88,33 @@ describe("local ratings", () => {
     writeLocalRating(storage, "camera-1", "camera-1:1001", 0);
 
     expect(readLocalRatings(storage, "camera-1")).toEqual({});
+  });
+
+  it("stores pick status independently from star ratings", () => {
+    const storage = new MemoryStorage();
+
+    writeLocalRating(storage, "camera-1", "camera-1:1001", 3);
+    writeLocalPickStatus(storage, "camera-1", "camera-1:1001", "picked");
+    writeLocalPickStatus(storage, "camera-1", "camera-1:1002", "rejected");
+
+    const marked = applyLocalPickStatuses(
+      applyLocalRatings(photos, readLocalRatings(storage, "camera-1")),
+      readLocalPickStatuses(storage, "camera-1"),
+    );
+
+    expect(marked.map((photo) => [photo.rating, photo.pickStatus])).toEqual([
+      [3, "picked"],
+      [2, "rejected"],
+    ]);
+  });
+
+  it("removes local pick status when the user clears the mark", () => {
+    const storage = new MemoryStorage();
+
+    writeLocalPickStatus(storage, "camera-1", "camera-1:1001", "picked");
+    writeLocalPickStatus(storage, "camera-1", "camera-1:1001", "none");
+
+    expect(readLocalPickStatuses(storage, "camera-1")).toEqual({});
   });
 
   it("treats unsupported SDK write-back errors as local-only rating results", () => {

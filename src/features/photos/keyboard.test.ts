@@ -11,11 +11,20 @@ describe("photo review keyboard shortcuts", () => {
     ["Home", { type: "edge", edge: "first" }],
     ["End", { type: "edge", edge: "last" }],
     ["5", { type: "rate", rating: 5 }],
+    ["0", { type: "rate", rating: 0 }],
+    ["p", { type: "mark", status: "picked" }],
+    ["P", { type: "mark", status: "picked" }],
+    ["x", { type: "mark", status: "rejected" }],
+    ["X", { type: "mark", status: "rejected" }],
+    ["i", { type: "inspector" }],
+    ["I", { type: "inspector" }],
     ["Backspace", { type: "rate", rating: 0 }],
     ["Delete", { type: "rate", rating: 0 }],
     ["+", { type: "zoom", action: "in" }],
     ["=", { type: "zoom", action: "in" }],
     ["-", { type: "zoom", action: "out" }],
+    ["ArrowUp", { type: "zoom", action: "in" }],
+    ["ArrowDown", { type: "zoom", action: "out" }],
     ["f", { type: "zoom", action: "fit" }],
     ["F", { type: "zoom", action: "fit" }],
     ["z", { type: "zoom", action: "actual" }],
@@ -28,7 +37,6 @@ describe("photo review keyboard shortcuts", () => {
     expect(getPhotoReviewShortcut("Tab")).toBeNull();
     expect(getPhotoReviewShortcut("Escape")).toBeNull();
     expect(getPhotoReviewShortcut("6")).toBeNull();
-    expect(getPhotoReviewShortcut("0")).toBeNull();
   });
 
   it("does not run shortcuts while users are editing text", () => {

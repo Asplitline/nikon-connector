@@ -7,6 +7,7 @@ import {
   selectPhotoByOffset,
   selectPhotoEdge,
   updatePhotoPreview,
+  updatePhotoPickStatus,
   updatePhotoRating,
 } from "./catalog";
 import type { CameraPhoto } from "./types";
@@ -96,6 +97,14 @@ describe("photo catalog", () => {
     expect(catalog.photos.find((photo) => photo.id === "dsc-1001")?.rating).toBe(
       0,
     );
+    expect(catalog.selectedPhotoId).toBe("dsc-1001");
+  });
+
+  it("updates one photo pick status without changing selection", () => {
+    const catalog = updatePhotoPickStatus(createPhotoCatalog(photos), "dsc-1002", "picked");
+
+    expect(catalog.photos.find((photo) => photo.id === "dsc-1002")?.pickStatus)
+      .toBe("picked");
     expect(catalog.selectedPhotoId).toBe("dsc-1001");
   });
 

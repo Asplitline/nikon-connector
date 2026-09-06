@@ -1,9 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Filmstrip } from "./PhotoStage";
+import { reviewImageClass } from "./photoStyles";
 import type { CameraPhoto } from "./types";
 
-function photo(id: string, thumbnailUrl = ""): CameraPhoto {
+function photo(id: string, thumbnailUrl = "", previewUrl = ""): CameraPhoto {
   return {
     id,
     cameraId: "z6iii",
@@ -14,7 +15,7 @@ function photo(id: string, thumbnailUrl = ""): CameraPhoto {
     width: 6048,
     height: 4024,
     sizeMb: 18.4,
-    previewUrl: "",
+    previewUrl,
     thumbnailUrl,
   };
 }
@@ -79,6 +80,17 @@ describe("filmstrip virtualization", () => {
     expect(markup).toContain('aria-current="true"');
   });
 
+  it("renders a visible selection indicator on the selected thumbnail", () => {
+    const photos = [photo("a"), photo("b")];
+
+    const markup = renderToStaticMarkup(
+      <Filmstrip locale="zh-CN" onSelect={() => undefined} photos={photos} selectedPhotoId="b" />,
+    );
+
+    expect(markup).toContain('data-selected-indicator="true"');
+    expect(markup.match(/data-selected-indicator="true"/g)).toHaveLength(1);
+  });
+
   it("defers offscreen thumbnail decoding to the browser", () => {
     // 用带协议的地址：imageSource 会原样返回，避免在 node 环境走
     // convertFileSrc（它依赖 window）
@@ -92,11 +104,27 @@ describe("filmstrip virtualization", () => {
     expect(markup).toContain('decoding="async"');
   });
 
+  it("uses the preview image as a filmstrip fallback when the thumbnail is missing", () => {
+    const photos = [photo("a", "", "https://example.test/a-preview.jpg")];
+
+    const markup = renderToStaticMarkup(
+      <Filmstrip locale="zh-CN" onSelect={() => undefined} photos={photos} selectedPhotoId="a" />,
+    );
+
+    expect(markup).toContain('src="https://example.test/a-preview.jpg"');
+  });
+
   it("renders nothing but the container for an empty catalog", () => {
     const markup = renderToStaticMarkup(
       <Filmstrip locale="zh-CN" onSelect={() => undefined} photos={[]} selectedPhotoId={null} />,
     );
 
     expect(countItems(markup)).toBe(0);
+  });
+});
+
+describe("photo preview image", () => {
+  it("does not animate continuous gesture zoom changes", () => {
+    expect(reviewImageClass(false)).not.toContain("transition-transform");
   });
 });

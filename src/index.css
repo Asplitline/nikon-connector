@@ -42,12 +42,11 @@
     color-mix(in oklch, var(--app-panel) 84%, var(--app-canvas)) 0%,
     var(--app-canvas) 58%
   );
-  --background-image-stage-lit: radial-gradient(
-      circle at 50% 38%,
-      color-mix(in oklch, var(--app-stage-muted) 13%, transparent) 0%,
-      transparent 38%
-    ),
-    linear-gradient(180deg, oklch(0.215 0.012 72), var(--app-stage));
+  --background-image-stage-lit: linear-gradient(
+    180deg,
+    oklch(0.265 0.005 78),
+    var(--app-stage)
+  );
   --background-image-stage-empty: linear-gradient(
     180deg,
     color-mix(in oklch, var(--app-surface) 88%, var(--app-canvas)) 0%,
@@ -97,17 +96,17 @@
     sans-serif;
   color-scheme: light;
   --app-canvas: oklch(0.952 0.008 78);
-  --app-panel: oklch(0.978 0.006 78);
-  --app-surface: oklch(0.993 0.004 78);
-  --app-stage: oklch(0.19 0.011 72);
-  --app-stage-line: oklch(0.46 0.016 72 / 0.6);
-  --app-stage-muted: oklch(0.76 0.018 78);
-  --app-stage-toolbar: oklch(0.23 0.012 72 / 0.9);
-  --app-ink: oklch(0.205 0.014 72);
-  --app-muted: oklch(0.51 0.018 72);
-  --app-line: oklch(0.855 0.011 78);
-  --app-hover: oklch(0.922 0.012 78);
-  --app-focus: oklch(0.58 0.11 72);
+  --app-panel: oklch(0.91 0.003 78);
+  --app-surface: oklch(0.95 0.003 78);
+  --app-stage: oklch(0.25 0.005 78);
+  --app-stage-line: oklch(0.48 0.008 78 / 0.58);
+  --app-stage-muted: oklch(0.73 0.008 78);
+  --app-stage-toolbar: oklch(0.22 0.006 78 / 0.78);
+  --app-ink: oklch(0.19 0.007 78);
+  --app-muted: oklch(0.48 0.008 78);
+  --app-line: oklch(0.805 0.006 78);
+  --app-hover: oklch(0.88 0.005 78);
+  --app-focus: oklch(0.67 0.12 82);
   --app-star: oklch(0.69 0.145 82);
   --app-ready: oklch(0.64 0.13 148);
   --app-danger: oklch(0.47 0.16 28);
@@ -132,18 +131,18 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --app-canvas: oklch(0.18 0.009 72);
-  --app-panel: oklch(0.225 0.01 72);
-  --app-surface: oklch(0.272 0.012 72);
-  --app-stage: oklch(0.125 0.008 72);
-  --app-stage-line: oklch(0.43 0.012 72 / 0.72);
-  --app-stage-muted: oklch(0.7 0.014 78);
-  --app-stage-toolbar: oklch(0.2 0.01 72 / 0.92);
-  --app-ink: oklch(0.928 0.009 78);
-  --app-muted: oklch(0.69 0.014 76);
-  --app-line: oklch(0.38 0.012 76);
-  --app-hover: oklch(0.335 0.013 76);
-  --app-focus: oklch(0.72 0.11 78);
+  --app-canvas: oklch(0.185 0.005 78);
+  --app-panel: oklch(0.255 0.005 78);
+  --app-surface: oklch(0.305 0.005 78);
+  --app-stage: oklch(0.215 0.004 78);
+  --app-stage-line: oklch(0.42 0.006 78 / 0.72);
+  --app-stage-muted: oklch(0.69 0.008 78);
+  --app-stage-toolbar: oklch(0.23 0.005 78 / 0.82);
+  --app-ink: oklch(0.92 0.006 78);
+  --app-muted: oklch(0.69 0.008 78);
+  --app-line: oklch(0.385 0.006 78);
+  --app-hover: oklch(0.335 0.006 78);
+  --app-focus: oklch(0.76 0.12 82);
   --app-star: oklch(0.78 0.14 84);
   --app-ready: oklch(0.72 0.13 148);
   --app-danger: oklch(0.72 0.16 28);
@@ -164,10 +163,19 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overscroll-behavior-y: none;
 }
 
 button {
@@ -176,6 +184,30 @@ button {
 
 button {
   -webkit-tap-highlight-color: transparent;
+}
+
+.filmstrip-scroll {
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--app-muted) 30%, transparent)
+    transparent;
+}
+
+.filmstrip-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.filmstrip-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.filmstrip-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--app-muted) 22%, transparent);
+  border-radius: 999px;
+}
+
+.filmstrip-scroll:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--app-muted) 48%, transparent);
 }
 
 @utility section-label {
@@ -196,5 +228,3 @@ button {
     transition-duration: 1ms !important;
   }
 }
-
-

@@ -21,6 +21,7 @@ export const catalogSortOptions: PhotoCatalogSort[] = [
 ];
 
 export const exportModeOptions: ExportMode[] = [
+  "picked",
   "visible",
   "rating_3_plus",
   "rating_4_plus",
@@ -54,6 +55,7 @@ export function formatCatalogSort(sort: PhotoCatalogSort, locale: Locale) {
 export function formatExportMode(mode: ExportMode, locale: Locale) {
   const labels: Record<ExportMode, string> = {
     current: t("export.mode.current", undefined, locale),
+    picked: t("export.mode.picked", undefined, locale),
     rating_3_plus: t("export.mode.rating3Plus", undefined, locale),
     rating_4_plus: t("export.mode.rating4Plus", undefined, locale),
     rating_5: t("export.mode.rating5", undefined, locale),

@@ -13,14 +13,18 @@ import { createSingleFlight } from "../../lib/singleFlight";
 import {
   createPhotoCatalog,
   replacePhotos,
+  updatePhotoPickStatus,
   updatePhotoPreview,
   updatePhotoRating,
 } from "../photos/catalog";
 import { createPhotoStream, mergePhotoBatch } from "../photos/photoStream";
 import {
+  applyLocalPickStatuses,
   applyLocalRatings,
   isLocalOnlyRatingError,
+  readLocalPickStatuses,
   readLocalRatings,
+  writeLocalPickStatus,
   writeLocalRating,
 } from "../photos/localRatings";
 import {
@@ -39,6 +43,7 @@ import type {
   CameraConnectionState,
   CameraDevice,
   CameraPhoto,
+  PickStatus,
   PhotoCatalogState,
   Rating,
 } from "../photos/types";
@@ -75,6 +80,7 @@ export interface CameraSession {
   setStatus: (status: string) => void;
   status: string;
   updateRating: (photo: CameraPhoto, rating: Rating) => Promise<void>;
+  updatePickStatus: (photo: CameraPhoto, status: PickStatus) => void;
 }
 
 // 相机会话：扫描连接、枚举照片、按需缓存预览、写评级、导出原图
@@ -116,6 +122,7 @@ export function useCameraSession(locale: Locale): CameraSession {
 
       const nextCamera = nextCameras[0];
       const ratings = readLocalRatings(window.localStorage, nextCamera.id);
+      const pickStatuses = readLocalPickStatuses(window.localStorage, nextCamera.id);
 
       // 上一次枚举的订阅要先撤掉，否则旧相机的批次会混进新目录
       photoStreamRef.current?.cancel();
@@ -128,7 +135,10 @@ export function useCameraSession(locale: Locale): CameraSession {
       const handle = await streamPhotos(nextCamera.id, (batch) => {
         stream = mergePhotoBatch(stream, {
           done: batch.done,
-          photos: applyLocalRatings(batch.photos, ratings),
+          photos: applyLocalPickStatuses(
+            applyLocalRatings(batch.photos, ratings),
+            pickStatuses,
+          ),
         });
         setCatalog((current) => replacePhotos(current, stream.photos));
 
@@ -206,6 +216,7 @@ export function useCameraSession(locale: Locale): CameraSession {
         inFlightPhotoIds: inFlightPreviewIdsRef.current,
         previewLookahead,
         radius: thumbnailRadius,
+        visibleWindow,
       });
 
       if (plan.length === 0) {
@@ -375,6 +386,21 @@ export function useCameraSession(locale: Locale): CameraSession {
     [activeCamera, tr],
   );
 
+  const updatePickStatus = useCallback((photo: CameraPhoto, status: PickStatus) => {
+    setCatalog((current) => updatePhotoPickStatus(current, photo.id, status));
+    writeLocalPickStatus(window.localStorage, photo.cameraId, photo.id, status);
+    setStatus(
+      tr(
+        status === "picked"
+          ? "status.pickSaved"
+          : status === "rejected"
+            ? "status.rejectSaved"
+            : "status.pickCleared",
+        { fileName: photo.fileName },
+      ),
+    );
+  }, [tr]);
+
   return {
     activeCamera,
     catalog,
@@ -388,6 +414,7 @@ export function useCameraSession(locale: Locale): CameraSession {
     setCatalog,
     setStatus,
     status,
+    updatePickStatus,
     updateRating,
   };
 }

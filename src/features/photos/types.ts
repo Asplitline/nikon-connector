@@ -1,5 +1,7 @@
 export type Rating = 0 | 1 | 2 | 3 | 4 | 5;
 
+export type PickStatus = "none" | "picked" | "rejected";
+
 export type CameraConnectionState =
   | "not_connected"
   | "connected"
@@ -25,6 +27,7 @@ export interface CameraPhoto {
   sizeMb: number;
   previewUrl: string;
   thumbnailUrl: string;
+  pickStatus?: PickStatus;
   objectHandle?: string;
   storageId?: string;
   canDownloadOriginal?: boolean;

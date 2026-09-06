@@ -25,6 +25,7 @@ export interface PreviewQueueOptions {
   inFlightPhotoIds: Set<string>;
   previewLookahead?: number;
   radius?: number;
+  visibleWindow?: PreviewVisibleWindow | null;
 }
 
 export function createPreviewQueue({
@@ -50,6 +51,7 @@ export function createPreviewPlan({
   inFlightPhotoIds,
   previewLookahead = 0,
   radius = 2,
+  visibleWindow = null,
 }: PreviewQueueOptions): PreviewQueueItem[] {
   if (!selectedPhotoId) {
     return [];
@@ -100,6 +102,12 @@ export function createPreviewPlan({
   for (let distance = 1; distance <= radius; distance += 1) {
     add(selectedIndex - distance, "thumbnail");
     add(selectedIndex + distance, "thumbnail");
+  }
+
+  if (visibleWindow) {
+    for (let index = visibleWindow.startIndex; index < visibleWindow.endIndex; index += 1) {
+      add(index, "thumbnail");
+    }
   }
 
   return plan;

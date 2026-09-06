@@ -13,6 +13,7 @@ import {
 import type {
   CameraConnectionState,
   CameraPhoto,
+  PickStatus,
   PhotoCatalogState,
   Rating,
 } from "../photos/types";
@@ -23,6 +24,8 @@ export function useReviewKeyboard({
   connectionState,
   filter,
   onRate,
+  onMark,
+  onToggleInspector,
   selectedPhoto,
   setCatalog,
   setZoom,
@@ -31,6 +34,8 @@ export function useReviewKeyboard({
   connectionState: CameraConnectionState;
   filter: PhotoCatalogFilter;
   onRate: (photo: CameraPhoto, rating: Rating) => void;
+  onMark: (photo: CameraPhoto, status: PickStatus) => void;
+  onToggleInspector: () => void;
   selectedPhoto: CameraPhoto | undefined;
   setCatalog: React.Dispatch<React.SetStateAction<PhotoCatalogState>>;
   setZoom: React.Dispatch<React.SetStateAction<PhotoZoomState>>;
@@ -70,6 +75,21 @@ export function useReviewKeyboard({
         return;
       }
 
+      if (shortcut.type === "mark" && connectionState === "connected" && selectedPhoto) {
+        event.preventDefault();
+        onMark(
+          selectedPhoto,
+          selectedPhoto.pickStatus === shortcut.status ? "none" : shortcut.status,
+        );
+        return;
+      }
+
+      if (shortcut.type === "inspector" && selectedPhoto) {
+        event.preventDefault();
+        onToggleInspector();
+        return;
+      }
+
       if (shortcut.type === "zoom" && selectedPhoto) {
         event.preventDefault();
         setZoom((current) => applyZoomAction(current, shortcut.action));
@@ -81,5 +101,15 @@ export function useReviewKeyboard({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [connectionState, filter, onRate, selectedPhoto, setCatalog, setZoom, sort]);
+  }, [
+    connectionState,
+    filter,
+    onMark,
+    onRate,
+    onToggleInspector,
+    selectedPhoto,
+    setCatalog,
+    setZoom,
+    sort,
+  ]);
 }

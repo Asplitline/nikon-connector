@@ -184,6 +184,30 @@ describe("preview queue", () => {
     ).toBe(16);
   });
 
+  it("queues thumbnails for the measured visible window even when it is away from the selected photo", () => {
+    const photos = Array.from({ length: 80 }, (_, index) => photo(`p${index}`));
+
+    const plan = createPreviewPlan({
+      photos,
+      selectedPhotoId: "p2",
+      inFlightPhotoIds: new Set(),
+      previewLookahead: 2,
+      radius: 1,
+      visibleWindow: { startIndex: 40, endIndex: 44 },
+    });
+
+    expect(plan.map((item) => `${item.photo.id}:${item.tier}`)).toEqual([
+      "p2:preview",
+      "p3:preview",
+      "p4:preview",
+      "p1:thumbnail",
+      "p40:thumbnail",
+      "p41:thumbnail",
+      "p42:thumbnail",
+      "p43:thumbnail",
+    ]);
+  });
+
   it("keeps a fallback lookahead before the filmstrip has been measured", () => {
     expect(previewLookaheadForWindow({ fallback: 8, visibleWindow: null })).toBe(8);
   });

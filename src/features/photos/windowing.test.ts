@@ -1,12 +1,40 @@
 import { describe, expect, it } from "vitest";
 import { computeWindowRange, scrollOffsetForIndex } from "./windowing";
 
-// 胶片条实际尺寸：148px 宽、12px 间距（PhotoStage 的 w-[148px] 与 gap-3）
-const itemWidth = 148;
+// 胶片条实际尺寸：132px 宽、12px 间距（PhotoStage 的 w-[132px] 与 gap-3）
+const itemWidth = 132;
 const gap = 12;
 const stride = itemWidth + gap;
 
 describe("computeWindowRange", () => {
+  it("caps the rendered window at forty items on very wide viewports", () => {
+    const range = computeWindowRange({
+      gap,
+      itemWidth,
+      scrollLeft: 0,
+      total: 500,
+      viewportWidth: 9_000,
+    });
+
+    expect(range.startIndex).toBe(0);
+    expect(range.endIndex - range.startIndex).toBe(40);
+  });
+
+  it("moves the capped window with horizontal scrolling", () => {
+    const range = computeWindowRange({
+      gap,
+      itemWidth,
+      overscan: 4,
+      scrollLeft: 120 * stride,
+      total: 500,
+      viewportWidth: 9_000,
+    });
+
+    expect(range.startIndex).toBe(116);
+    expect(range.endIndex).toBe(156);
+    expect(range.startSpacer).toBe(116 * stride);
+  });
+
   it("renders only a small slice of a large catalog", () => {
     const range = computeWindowRange({
       gap,
@@ -121,6 +149,19 @@ describe("computeWindowRange", () => {
 });
 
 describe("scrollOffsetForIndex", () => {
+  it("keeps selected thumbnail away from the right viewport edge", () => {
+    const offset = scrollOffsetForIndex({
+      edgePadding: 8,
+      gap,
+      index: 8,
+      itemWidth,
+      scrollLeft: 0,
+      viewportWidth: 500,
+    });
+
+    expect(offset).toBe(8 * stride + itemWidth - 500 + 8);
+  });
+
   it("scrolls left when the target sits before the viewport", () => {
     const offset = scrollOffsetForIndex({
       gap,

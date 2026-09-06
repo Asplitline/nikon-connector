@@ -14,7 +14,7 @@ export interface ShootingReview {
 export function createShootingReview(photos: CameraPhoto[]): ShootingReview {
   const total = photos.length;
   const rated = photos.filter((photo) => photo.rating > 0).length;
-  const keepers = photos.filter((photo) => photo.rating >= 4).length;
+  const keepers = photos.filter((photo) => photo.pickStatus === "picked").length;
   const capturedAt = photos
     .map((photo) => photo.capturedAt)
     .filter((value) => !Number.isNaN(Date.parse(value)))
