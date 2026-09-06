@@ -4,7 +4,10 @@ import {
   ConnectionSetup,
   EmptyPhotoDetails,
 } from "../photos/ConnectionPanels";
-import type { ConnectionDiagnostics } from "../photos/connectionDiagnostics";
+import type {
+  ConnectionDiagnostics,
+  DiagnosticActionKind,
+} from "../photos/connectionDiagnostics";
 import { ExportPanel } from "../photos/ExportPanel";
 import { formatConnection } from "../photos/labels";
 import { PhotoDetails } from "../photos/PhotoDetails";
@@ -54,6 +57,7 @@ export function WorkspacePanel({
   locale,
   onNavigatePhoto,
   onMark,
+  onDiagnosticAction,
   onOpenConnectionCheck,
   onOpenSettings,
   onPreviewWindowChange,
@@ -82,6 +86,7 @@ export function WorkspacePanel({
   locale: Locale;
   onNavigatePhoto: (offset: -1 | 1) => void;
   onMark: (photo: CameraPhoto, status: PickStatus) => void;
+  onDiagnosticAction: (kind: DiagnosticActionKind) => void;
   onOpenConnectionCheck: () => void;
   onOpenSettings: () => void;
   onPreviewWindowChange: (window: { endIndex: number; startIndex: number }) => void;
@@ -245,6 +250,7 @@ export function WorkspacePanel({
           <ConnectionSetup
             diagnostics={diagnostics}
             locale={locale}
+            onDiagnosticAction={onDiagnosticAction}
             onOpenConnectionCheck={onOpenConnectionCheck}
             onPrimaryAction={onPrimaryDiagnosticAction}
           />

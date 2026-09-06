@@ -226,6 +226,7 @@ function App() {
           locale={locale}
           onNavigatePhoto={handleNavigatePhoto}
           onMark={handleMark}
+          onDiagnosticAction={(kind) => void runAction(kind)}
           onOpenConnectionCheck={() => setConnectionCheckOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onPreviewWindowChange={handlePreviewWindowChange}

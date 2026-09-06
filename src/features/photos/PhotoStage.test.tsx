@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Filmstrip } from "./PhotoStage";
+import { Filmstrip, PhotoStage } from "./PhotoStage";
 import { reviewImageClass } from "./photoStyles";
+import { resolvePreviewSwapState } from "./previewSwap";
 import type { CameraPhoto } from "./types";
 
 function photo(id: string, thumbnailUrl = "", previewUrl = ""): CameraPhoto {
@@ -126,5 +127,40 @@ describe("filmstrip virtualization", () => {
 describe("photo preview image", () => {
   it("does not animate continuous gesture zoom changes", () => {
     expect(reviewImageClass(false)).not.toContain("transition-transform");
+  });
+
+  it("shows a quiet loading indicator while only the thumbnail is available", () => {
+    const markup = renderToStaticMarkup(
+      <div className="group">
+        <PhotoStage
+          locale="zh-CN"
+          onMark={() => undefined}
+          onNext={() => undefined}
+          onPrevious={() => undefined}
+          onRate={() => undefined}
+          onZoomAction={() => undefined}
+          photo={photo("a", "https://example.test/a-thumb.jpg")}
+          zoom={{ mode: "fit", scale: 1 }}
+          zoomLabel="适应"
+        />
+      </div>,
+    );
+
+    expect(markup).toContain("正在加载高清预览");
+  });
+
+  it("keeps the visible thumbnail until the new preview candidate has loaded", () => {
+    expect(
+      resolvePreviewSwapState({
+        loadedPreviewUrl: null,
+        previewUrl: "https://example.test/a-preview.jpg",
+        thumbnailUrl: "https://example.test/a-thumb.jpg",
+        visibleUrl: "https://example.test/a-thumb.jpg",
+      }),
+    ).toEqual({
+      isLoadingUpgrade: true,
+      preloadUrl: "https://example.test/a-preview.jpg",
+      visibleUrl: "https://example.test/a-thumb.jpg",
+    });
   });
 });

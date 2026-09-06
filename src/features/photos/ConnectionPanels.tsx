@@ -1,5 +1,9 @@
 import { defaultLocale, type Locale, t } from "../../i18n";
-import type { ConnectionDiagnostics } from "./connectionDiagnostics";
+import type {
+  ConnectionDiagnostics,
+  DiagnosticActionKind,
+} from "./connectionDiagnostics";
+import { DiagnosticStepRow } from "./ConnectionDiagnosticDialog";
 import { connectionKickerClass, diagnosticSummaryClass } from "../app/statusStyles";
 import { buttonClass } from "../app/buttonStyles";
 
@@ -31,33 +35,52 @@ export function ConnectionDiagnosticPanel({
   );
 }
 
-// 照片舞台的空态：只提示当前阻塞的那一步
+// 照片舞台的空态：普通连接问题显示当前阻塞点；存储卡不可读时直接展开完整检查步骤
 export function ConnectionSetup({
   diagnostics,
   locale = defaultLocale,
+  onDiagnosticAction,
   onOpenConnectionCheck,
   onPrimaryAction,
 }: {
   diagnostics: ConnectionDiagnostics;
   locale?: Locale;
+  onDiagnosticAction?: (kind: DiagnosticActionKind) => void;
   onOpenConnectionCheck: () => void;
   onPrimaryAction: () => void;
 }) {
   const blockingStep = diagnostics.steps.find(
     (step) => step.id === diagnostics.blockingStepId,
   );
+  const shouldShowFullChecklist = diagnostics.blockingStepId === "card_photos";
+  const connectionSteps = diagnostics.steps.filter(
+    (step) => step.id !== "rating_write_back",
+  );
 
   return (
-    <section className="w-[min(620px,100%)] rounded-[10px] border border-line bg-surface p-[clamp(20px,4vw,34px)] text-ink shadow-[0_18px_54px_color-mix(in_oklch,var(--app-ink)_10%,transparent)]">
+    <section className="w-[min(520px,100%)] rounded-[10px] border border-line bg-surface p-6 text-ink shadow-[0_18px_54px_color-mix(in_oklch,var(--app-ink)_10%,transparent)] max-sm:p-5">
       <p className={connectionKickerClass(diagnostics.severity)}>
         {diagnostics.summary}
       </p>
-      <h2 className="mt-[18px] text-[clamp(1.75rem,4vw,3.15rem)] font-ui-760 tracking-normal leading-[0.98]">
+      <h2 className="mt-3 text-ui-title font-ui-760 tracking-normal leading-tight">
         {blockingStep?.label ?? t("connection.cameraConnected", undefined, locale)}
       </h2>
-      <p className="mt-4 max-w-[52ch] text-base leading-[1.65] wrap-anywhere text-muted">
+      <p className="mt-2 max-w-[58ch] text-ui-4xl leading-[1.55] wrap-anywhere text-muted">
         {blockingStep?.detail ?? t("connection.cameraReadyForReview", undefined, locale)}
       </p>
+      {shouldShowFullChecklist ? (
+        <ol className="mt-4 grid gap-1.5 m-0 p-0">
+          {connectionSteps.map((step) => (
+            <DiagnosticStepRow
+              compact
+              key={step.id}
+              locale={locale}
+              onAction={onDiagnosticAction}
+              step={step}
+            />
+          ))}
+        </ol>
+      ) : null}
       <div className="mt-[22px] flex flex-wrap gap-2.5">
         <button
           className={buttonClass("primary")}
@@ -67,9 +90,11 @@ export function ConnectionSetup({
         >
           {diagnostics.primaryAction.label}
         </button>
-        <button className={buttonClass("secondary")} onClick={onOpenConnectionCheck} type="button">
-          {t("connection.checkOpen", undefined, locale)}
-        </button>
+        {shouldShowFullChecklist ? null : (
+          <button className={buttonClass("secondary")} onClick={onOpenConnectionCheck} type="button">
+            {t("connection.checkOpen", undefined, locale)}
+          </button>
+        )}
       </div>
     </section>
   );

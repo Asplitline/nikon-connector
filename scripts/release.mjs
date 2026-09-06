@@ -15,6 +15,98 @@ const versionFiles = {
   cargoLock: "src-tauri/Cargo.lock",
 };
 
+const releaseEnvKeys = new Set([
+  "TAURI_SIGNING_PRIVATE_KEY",
+  "TAURI_SIGNING_PRIVATE_KEY_PATH",
+  "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+]);
+
+function unquoteEnvValue(value) {
+  const trimmed = value.trim();
+  const quote = trimmed[0];
+  if ((quote === `"` || quote === `'`) && trimmed.endsWith(quote)) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function expandHomePath(value) {
+  if (value === "~") {
+    return process.env.HOME ?? value;
+  }
+  if (value.startsWith("~/")) {
+    return join(process.env.HOME ?? "~", value.slice(2));
+  }
+  if (value.startsWith("$HOME/")) {
+    return join(process.env.HOME ?? "$HOME", value.slice(6));
+  }
+  return value;
+}
+
+export function parseReleaseEnv(contents) {
+  const env = {};
+
+  for (const line of contents.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    if (!releaseEnvKeys.has(key)) {
+      continue;
+    }
+
+    let value = unquoteEnvValue(trimmed.slice(separatorIndex + 1));
+    if (key === "TAURI_SIGNING_PRIVATE_KEY" || key === "TAURI_SIGNING_PRIVATE_KEY_PATH") {
+      value = expandHomePath(value);
+    }
+    env[key] = value;
+  }
+
+  return env;
+}
+
+export async function loadReleaseEnv(root = process.cwd()) {
+  let envFile;
+  try {
+    envFile = await readFile(join(root, ".env.release.local"), "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+
+  const env = parseReleaseEnv(envFile);
+  for (const [key, value] of Object.entries(env)) {
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+  if (!process.env.TAURI_SIGNING_PRIVATE_KEY && process.env.TAURI_SIGNING_PRIVATE_KEY_PATH) {
+    process.env.TAURI_SIGNING_PRIVATE_KEY = (
+      await readFile(process.env.TAURI_SIGNING_PRIVATE_KEY_PATH, "utf8")
+    ).trim();
+  } else if (process.env.TAURI_SIGNING_PRIVATE_KEY) {
+    try {
+      process.env.TAURI_SIGNING_PRIVATE_KEY = (
+        await readFile(process.env.TAURI_SIGNING_PRIVATE_KEY, "utf8")
+      ).trim();
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+  return env;
+}
+
 export function parseVersion(input) {
   const value = String(input ?? "").trim();
   const match = VERSION_RE.exec(value);
@@ -77,7 +169,7 @@ export function tauriBuildArgs(argv = []) {
     return ["run", "tauri", "build", ...argv];
   }
 
-  return ["run", "tauri", "build", "--bundles", "dmg", ...argv];
+  return ["run", "tauri", "build", "--bundles", "app,dmg", ...argv];
 }
 
 export function defaultReleaseInstallerPath(root, version) {
@@ -86,6 +178,15 @@ export function defaultReleaseInstallerPath(root, version) {
     "dist",
     "releases",
     `Nikon-Connector-v${parseVersion(version).value}-macos-aarch64.dmg`,
+  );
+}
+
+export function defaultReleaseArchivePath(root, version) {
+  return join(
+    root,
+    "dist",
+    "releases",
+    `Nikon-Connector-v${parseVersion(version).value}-macos-aarch64.app.tar.gz`,
   );
 }
 
@@ -106,7 +207,41 @@ export function tauriDmgPath(root, version) {
 }
 
 export function tauriUpdaterManifestPath(root) {
-  return join(root, "src-tauri", "target", "release", "bundle", "dmg", "latest.json");
+  return join(root, "src-tauri", "target", "release", "bundle", "macos", "latest.json");
+}
+
+export function tauriUpdaterArchivePath(root) {
+  return join(
+    root,
+    "src-tauri",
+    "target",
+    "release",
+    "bundle",
+    "macos",
+    "Nikon Connector.app.tar.gz",
+  );
+}
+
+export function tauriUpdaterSignaturePath(root) {
+  return `${tauriUpdaterArchivePath(root)}.sig`;
+}
+
+export function updaterArchiveUrl(version) {
+  return `https://github.com/Asplitline/nikon-connector/releases/latest/download/Nikon-Connector-v${parseVersion(version).value}-macos-aarch64.app.tar.gz`;
+}
+
+export function buildUpdaterManifest({ notes, pubDate, signature, url, version }) {
+  return {
+    version: parseVersion(version).value,
+    notes,
+    pub_date: pubDate,
+    platforms: {
+      "darwin-aarch64": {
+        signature,
+        url,
+      },
+    },
+  };
 }
 
 export function buildGithubReleaseArgs({ tag, title, notes, assets = [] }) {
@@ -410,16 +545,30 @@ async function commitRelease(root, version) {
 
 async function packageRelease(root = process.cwd(), argv = []) {
   const { version } = await validateReleaseState(root);
+  await loadReleaseEnv(root);
   await run("bun", ["run", "check"], { cwd: root });
   await run("bun", ["run", "test"], { cwd: root });
   await run("bun", tauriBuildArgs(argv), { cwd: root });
 
   const installerPath = defaultReleaseInstallerPath(root, version);
+  const archivePath = defaultReleaseArchivePath(root, version);
   const updaterManifestPath = defaultUpdaterManifestPath(root);
+  const notes = await changelogNotesForVersion(root, version);
+  const signature = (await readFile(tauriUpdaterSignaturePath(root), "utf8")).trim();
   await mkdir(join(root, "dist", "releases"), { recursive: true });
   await copyFile(tauriDmgPath(root, version), installerPath);
-  await copyFile(tauriUpdaterManifestPath(root), updaterManifestPath);
-  return [installerPath, updaterManifestPath];
+  await copyFile(tauriUpdaterArchivePath(root), archivePath);
+  await writeJson(
+    updaterManifestPath,
+    buildUpdaterManifest({
+      notes,
+      pubDate: new Date().toISOString(),
+      signature,
+      url: updaterArchiveUrl(version),
+      version,
+    }),
+  );
+  return [installerPath, archivePath, updaterManifestPath];
 }
 
 async function publishGithubRelease(root = process.cwd(), assets = []) {

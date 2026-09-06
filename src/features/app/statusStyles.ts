@@ -66,8 +66,13 @@ const stepShell: Record<DiagnosticStepState, string> = {
   unavailable: "border-line",
 };
 
-export function diagnosticStepClass(state: DiagnosticStepState): string {
-  return `grid grid-cols-[22px_minmax(0,1fr)] gap-[9px] rounded-lg border bg-[color-mix(in_oklch,var(--app-surface)_72%,transparent)] p-[9px] ${stepShell[state]}`;
+export function diagnosticStepClass(
+  state: DiagnosticStepState,
+  compact = false,
+): string {
+  const density = compact ? "gap-2 p-2" : "gap-[9px] p-[9px]";
+
+  return `grid grid-cols-[22px_minmax(0,1fr)] rounded-lg border bg-[color-mix(in_oklch,var(--app-surface)_72%,transparent)] ${density} ${stepShell[state]}`;
 }
 
 const markerTone: Record<DiagnosticStepState, string> = {

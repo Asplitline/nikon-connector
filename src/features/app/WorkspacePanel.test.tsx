@@ -65,6 +65,7 @@ describe("WorkspacePanel", () => {
         locale="zh-CN"
         onNavigatePhoto={() => undefined}
         onMark={() => undefined}
+        onDiagnosticAction={() => undefined}
         onOpenConnectionCheck={() => undefined}
         onOpenSettings={() => undefined}
         onPreviewWindowChange={() => undefined}

@@ -88,28 +88,37 @@ export function ConnectionDiagnosticDialog({
   );
 }
 
-function DiagnosticStepRow({
+export function DiagnosticStepRow({
+  compact = false,
   locale = defaultLocale,
   onAction,
   step,
 }: {
+  compact?: boolean;
   locale?: Locale;
   onAction?: (kind: DiagnosticActionKind) => void;
   step: ConnectionDiagnosticStep;
 }) {
+  const labelClass = compact
+    ? "min-w-0 wrap-anywhere text-ui-2xl font-ui-760 leading-[1.2]"
+    : "min-w-0 wrap-anywhere text-ui-3xl font-ui-760 leading-[1.2]";
+  const detailClass = compact
+    ? "mt-0.5 block text-ui-sm leading-[1.4] wrap-anywhere text-muted"
+    : "mt-1 block text-ui-lg leading-[1.45] wrap-anywhere text-muted";
+
   return (
-    <li className={diagnosticStepClass(step.state)}>
+    <li className={diagnosticStepClass(step.state, compact)}>
       <span aria-hidden="true" className={diagnosticMarkerClass(step.state)}>
         {diagnosticSymbol(step.state)}
       </span>
       <span className="min-w-0">
         <span className="flex min-w-0 items-baseline justify-between gap-2">
-          <span className="min-w-0 wrap-anywhere text-ui-3xl font-ui-760 leading-[1.2]">{step.label}</span>
+          <span className={labelClass}>{step.label}</span>
           <span className={diagnosticStateClass(step.state)}>
             {formatDiagnosticState(step.state, locale)}
           </span>
         </span>
-        <span className="mt-1 block text-ui-lg leading-[1.45] wrap-anywhere text-muted">{step.detail}</span>
+        <span className={detailClass}>{step.detail}</span>
         {step.action && onAction ? (
           <button
             className={diagnosticActionClass}

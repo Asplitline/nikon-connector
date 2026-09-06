@@ -1,7 +1,7 @@
 {
   "name": "nikon-connector",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.1.7",
   "type": "module",
   "packageManager": "bun@1.4.0",
   "scripts": {

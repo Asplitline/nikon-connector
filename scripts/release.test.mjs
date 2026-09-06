@@ -6,20 +6,36 @@ import { describe, expect, test, afterEach } from "vitest";
 import {
   buildGithubReleaseArgs,
   buildReleaseCommitArgs,
+  buildUpdaterManifest,
+  defaultReleaseArchivePath,
   changelogNotesForVersion,
   defaultReleaseInstallerPath,
   defaultUpdaterManifestPath,
+  loadReleaseEnv,
   nextVersion,
   parseVersion,
+  parseReleaseEnv,
   prepareChangelog,
   readProjectVersions,
   setProjectVersion,
   tagForVersion,
   tauriBuildArgs,
+  tauriUpdaterManifestPath,
   validateReleaseState,
 } from "./release.mjs";
 
 const roots = [];
+const originalReleaseEnv = {
+  TAURI_SIGNING_PRIVATE_KEY: process.env.TAURI_SIGNING_PRIVATE_KEY,
+  TAURI_SIGNING_PRIVATE_KEY_PATH: process.env.TAURI_SIGNING_PRIVATE_KEY_PATH,
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
+};
+
+function clearReleaseEnv() {
+  delete process.env.TAURI_SIGNING_PRIVATE_KEY;
+  delete process.env.TAURI_SIGNING_PRIVATE_KEY_PATH;
+  delete process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD;
+}
 
 async function makeFixture(version = "0.1.0") {
   const root = await mkdtemp(join(tmpdir(), "nikon-release-"));
@@ -52,6 +68,13 @@ async function makeFixture(version = "0.1.0") {
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  for (const [key, value] of Object.entries(originalReleaseEnv)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
 });
 
 describe("release version parsing", () => {
@@ -82,8 +105,11 @@ describe("release version parsing", () => {
 });
 
 describe("Tauri build arguments", () => {
-  test("defaults to DMG installer bundling and allows explicit bundle overrides", () => {
-    expect(tauriBuildArgs([])).toEqual(["run", "tauri", "build", "--bundles", "dmg"]);
+  test("defaults to updater-enabled app bundling with the DMG installer", () => {
+    expect(tauriBuildArgs([])).toEqual(["run", "tauri", "build", "--bundles", "app,dmg"]);
+  });
+
+  test("allows explicit bundle overrides", () => {
     expect(tauriBuildArgs(["--bundles", "app"])).toEqual([
       "run",
       "tauri",
@@ -91,6 +117,55 @@ describe("Tauri build arguments", () => {
       "--bundles",
       "app",
     ]);
+  });
+});
+
+describe("release environment files", () => {
+  test("parses updater signing keys from a local env file", () => {
+    expect(
+      parseReleaseEnv(`
+# Local signing setup
+TAURI_SIGNING_PRIVATE_KEY_PATH="$HOME/.tauri/nikon-connector.key"
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD='secret value'
+IGNORED=value
+`),
+    ).toEqual({
+      TAURI_SIGNING_PRIVATE_KEY_PATH: join(
+        process.env.HOME,
+        ".tauri",
+        "nikon-connector.key",
+      ),
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "secret value",
+    });
+  });
+
+  test("loads private key contents from a local key path", async () => {
+    clearReleaseEnv();
+    const root = await mkdtemp(join(tmpdir(), "nikon-release-env-"));
+    roots.push(root);
+    const keyPath = join(root, "updater.key");
+    await writeFile(keyPath, "base64-private-key\n");
+    await writeFile(
+      join(root, ".env.release.local"),
+      `TAURI_SIGNING_PRIVATE_KEY_PATH=${keyPath}\n`,
+    );
+
+    await loadReleaseEnv(root);
+
+    expect(process.env.TAURI_SIGNING_PRIVATE_KEY).toBe("base64-private-key");
+  });
+
+  test("loads private key contents when the private key value points to a file", async () => {
+    clearReleaseEnv();
+    const root = await mkdtemp(join(tmpdir(), "nikon-release-env-"));
+    roots.push(root);
+    const keyPath = join(root, "updater.key");
+    await writeFile(keyPath, "base64-private-key\n");
+    await writeFile(join(root, ".env.release.local"), `TAURI_SIGNING_PRIVATE_KEY=${keyPath}\n`);
+
+    await loadReleaseEnv(root);
+
+    expect(process.env.TAURI_SIGNING_PRIVATE_KEY).toBe("base64-private-key");
   });
 });
 
@@ -166,13 +241,19 @@ describe("GitHub release publishing", () => {
         tag: "v0.1.1",
         title: "Nikon Connector v0.1.1",
         notes: "### Added\n\n- Release tooling.",
-        assets: ["dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.dmg"],
+        assets: [
+          "dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.dmg",
+          "dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.app.tar.gz",
+          "dist/releases/latest.json",
+        ],
       }),
     ).toEqual([
       "release",
       "create",
       "v0.1.1",
       "dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.dmg",
+      "dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.app.tar.gz",
+      "dist/releases/latest.json",
       "--title",
       "Nikon Connector v0.1.1",
       "--notes",
@@ -187,8 +268,42 @@ describe("GitHub release publishing", () => {
     );
   });
 
+  test("uses the conventional macOS updater archive path for GitHub assets", () => {
+    expect(defaultReleaseArchivePath("/repo", "0.1.1")).toBe(
+      "/repo/dist/releases/Nikon-Connector-v0.1.1-macos-aarch64.app.tar.gz",
+    );
+  });
+
   test("uses the conventional updater manifest path for GitHub assets", () => {
     expect(defaultUpdaterManifestPath("/repo")).toBe("/repo/dist/releases/latest.json");
+  });
+
+  test("copies the updater manifest from the updater-enabled macOS app bundle output", () => {
+    expect(tauriUpdaterManifestPath("/repo")).toBe(
+      "/repo/src-tauri/target/release/bundle/macos/latest.json",
+    );
+  });
+
+  test("builds a static updater manifest for the macOS updater archive", () => {
+    expect(
+      buildUpdaterManifest({
+        notes: "### Added\n\n- Release tooling.",
+        pubDate: "2026-09-06T00:00:00.000Z",
+        signature: "signed-archive",
+        url: "https://github.com/Asplitline/nikon-connector/releases/latest/download/Nikon-Connector-v0.1.1-macos-aarch64.app.tar.gz",
+        version: "0.1.1",
+      }),
+    ).toEqual({
+      version: "0.1.1",
+      notes: "### Added\n\n- Release tooling.",
+      pub_date: "2026-09-06T00:00:00.000Z",
+      platforms: {
+        "darwin-aarch64": {
+          signature: "signed-archive",
+          url: "https://github.com/Asplitline/nikon-connector/releases/latest/download/Nikon-Connector-v0.1.1-macos-aarch64.app.tar.gz",
+        },
+      },
+    });
   });
 });
 

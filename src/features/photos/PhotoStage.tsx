@@ -17,6 +17,7 @@ import {
 } from "./zoom";
 import { iconButtonClass, zoomTextButtonClass } from "../app/buttonStyles";
 import { filmstripItemClass, reviewImageClass } from "./photoStyles";
+import { resolvePreviewSwapState } from "./previewSwap";
 import { StarRating } from "./StarRating";
 
 // 照片舞台：缩放工具栏 + 主预览图。空态由调用方以 children 传入
@@ -43,7 +44,7 @@ export function PhotoStage({
   zoom: PhotoZoomState;
   zoomLabel: string;
 }) {
-  const sourceUrl = photo.previewUrl || photo.thumbnailUrl;
+  const hasAnyPreviewSource = Boolean(photo.previewUrl || photo.thumbnailUrl);
 
   return (
     <>
@@ -92,13 +93,12 @@ export function PhotoStage({
       >
         ›
       </button>
-      {sourceUrl ? (
+      {hasAnyPreviewSource ? (
         <PhotoPreviewImage
           key={`${photo.id}:${zoom.mode === "scaled" && zoom.scale > 1 ? "draggable" : "locked"}`}
           locale={locale}
           onZoomAction={onZoomAction}
           photo={photo}
-          sourceUrl={sourceUrl}
           zoom={zoom}
         />
       ) : (
@@ -153,17 +153,20 @@ function PhotoPreviewImage({
   locale,
   onZoomAction,
   photo,
-  sourceUrl,
   zoom,
 }: {
   locale: Locale;
   onZoomAction: (action: ZoomAction) => void;
   photo: CameraPhoto;
-  sourceUrl: string;
   zoom: PhotoZoomState;
 }) {
   const [pan, setPan] = useState<PhotoPanState>(createFitPanState);
   const [isPanDragging, setIsPanDragging] = useState(false);
+  const [visibleImage, setVisibleImage] = useState({
+    loadedPreviewUrl: photo.previewUrl || null,
+    photoId: photo.id,
+    url: photo.previewUrl || photo.thumbnailUrl,
+  });
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchStartRef = useRef<{ distance: number; scale: number } | null>(null);
   const dragRef = useRef<{
@@ -174,6 +177,14 @@ function PhotoPreviewImage({
   } | null>(null);
   const canDragPhoto = zoom.mode === "scaled" && zoom.scale > 1;
   const isPhotoMoved = hasPhotoPan(pan);
+  const swapState = resolvePreviewSwapState({
+    loadedPreviewUrl:
+      visibleImage.photoId === photo.id ? visibleImage.loadedPreviewUrl : photo.previewUrl || null,
+    previewUrl: photo.previewUrl,
+    thumbnailUrl: photo.thumbnailUrl,
+    visibleUrl: visibleImage.photoId === photo.id ? visibleImage.url : photo.previewUrl || photo.thumbnailUrl,
+  });
+  const sourceUrl = swapState.visibleUrl;
 
   const getPinchDistance = useCallback(() => {
     const points = Array.from(pointersRef.current.values());
@@ -299,6 +310,34 @@ function PhotoPreviewImage({
 
   return (
     <>
+      {swapState.isLoadingUpgrade ? (
+        <div
+          aria-live="polite"
+          className="absolute right-5 top-5 z-10 flex h-8 items-center gap-2 rounded-md border border-stage-line bg-stage-toolbar px-2.5 text-ui-xs font-ui-760 text-on-image shadow-[0_12px_30px_color-mix(in_oklch,var(--app-ink)_18%,transparent)] max-sm:right-3 max-sm:top-[56px]"
+        >
+          <span
+            aria-hidden="true"
+            className="h-3 w-3 rounded-full border-2 border-on-image/30 border-t-on-image motion-safe:animate-spin"
+          />
+          {t("photo.previewLoading", undefined, locale)}
+        </div>
+      ) : null}
+      {swapState.preloadUrl ? (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute h-px w-px opacity-0"
+          decoding="async"
+          onLoad={() => {
+            setVisibleImage({
+              loadedPreviewUrl: swapState.preloadUrl,
+              photoId: photo.id,
+              url: swapState.preloadUrl,
+            });
+          }}
+          src={imageSource(swapState.preloadUrl)}
+        />
+      ) : null}
       <img
         alt={photo.fileName}
         className={reviewImageClass(zoom.mode === "fit")}

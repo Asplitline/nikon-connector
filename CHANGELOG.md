@@ -6,6 +6,27 @@ This project follows SemVer and keeps release notes in Keep a Changelog style.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-09-06
+
+### Added
+
+- Render cached display previews for NEF files when the camera does not expose
+  directly viewable originals.
+- Show shooting metadata in the photo details panel.
+- Add release notes and update-feed links to the settings panel.
+
+### Changed
+
+- Refined the photo review workspace layout, controls, zoom behavior, and
+  filmstrip handling for faster culling.
+- Prioritize clearer previews while preloading around the current filmstrip
+  window.
+
+### Fixed
+
+- Derive preview preload counts from the active filmstrip window to avoid
+  over-fetching previews outside the visible review range.
+
 ## [0.1.6] - 2026-09-04
 
 ### Changed
