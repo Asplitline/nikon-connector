@@ -4,7 +4,7 @@
 
 现阶段 Nikon Connector 的核心价值仍然是：
 
-> **连接 Nikon 相机，在不完整导入整张卡的前提下快速做第一轮初筛。**
+> **连接 Nikon Z6III，在不完整导入整张卡的前提下快速做第一轮初筛。**
 
 相机直连阶段优先速度，允许使用相机 thumbnail / embedded preview / display preview 完成快速浏览、Pick/Reject、星级和初筛。
 
@@ -20,6 +20,7 @@
 设计文档：
 
 - `docs/superpowers/specs/2026-09-06-native-preview-engine-design.md`
+- `docs/superpowers/specs/2026-09-06-source-switch-local-state-metadata-design.md`
 - `docs/superpowers/plans/2026-09-06-native-preview-engine.md`
 
 ---
@@ -82,9 +83,32 @@ Original Local File
 
 ---
 
-# P0 — Local Photo Browser
+# P0 — Source Switch / Local Photo Browser
 
-## 3. 支持加载本地图片目录
+## 3. 同一工作区支持 Z6III ↔ 本地目录切换
+
+目标交互：
+
+```text
+Source
+├── Nikon Z6III    ● Connected
+└── Local Folder   /Users/.../Photos
+```
+
+- [ ] 相机连接成功后，Z6III 作为一个可切换 source 展示。
+- [ ] 用户切换到 `Local Folder` 时，如果当前 session 还没有目录，则弹出文件夹选择器。
+- [ ] 选择目录后在原有 workspace 中直接切成本地 catalog + Native Quality preview。
+- [ ] 从本地目录切回 Z6III 时恢复相机 catalog 和之前的选中位置。
+- [ ] 切换 source 不主动断开相机，健康的相机 session 保持连接。
+- [ ] Camera 和 Local Folder 各自保存 selectedPhoto / filmstrip scroll / filter / sort 状态。
+- [ ] 支持 macOS 正常目录和有效的软链目录。
+- [ ] 软链目录使用 canonical path 做文件 identity/cache 去重；断开的软链给出明确错误。
+
+**验收：** 用户可以在一个窗口里反复 `Z6III -> Local Folder -> Z6III`，不需要重新连接相机，也不会丢失之前的相机选片位置。
+
+---
+
+## 4. 支持加载本地图片目录
 
 流程：
 
@@ -116,11 +140,11 @@ Open Folder
 
 ---
 
-## 4. 本地 filmstrip 缩略图走 `QLThumbnailGenerator`
+## 5. 本地 filmstrip 缩略图走 `QLThumbnailGenerator`
 
 - [ ] 使用 QuickLookThumbnailing 生成本地 thumbnail。
 - [ ] 根据 Retina backing scale 请求实际像素密度。
-- [ ] thumbnail cache key 包含 path + file size + modified time + requested size + scale。
+- [ ] thumbnail cache key 包含 canonical path + file size + modified time + requested size + scale。
 - [ ] 文件变更后自动失效旧 thumbnail。
 - [ ] 只加载 visible window + buffer 范围。
 - [ ] 2000+ 图片继续保持 DOM virtualization。
@@ -129,11 +153,47 @@ Open Folder
 
 ---
 
-# P0 — Unified Photo Source
+# P0 — Local State / Unified Photo Source
 
-## 5. 统一 Camera / Local / Exported 数据模型
+## 6. 相机图片下载/导出后，在原条目上标记为“本地”
 
-目标模型：
+相机图片下载到 managed cache 或导出到用户目录后，不能创建一个与原照片无关的新条目。
+
+状态模型至少包括：
+
+```ts
+type PhotoLocalState =
+  | { status: "none" }
+  | { status: "downloading"; progress?: number }
+  | {
+      status: "available";
+      preferredPath: string;
+      copies: Array<{
+        kind: "cache" | "export";
+        filePath: string;
+        canonicalPath: string;
+      }>;
+    }
+  | { status: "missing"; previousPath: string };
+```
+
+- [ ] 相机原条目保留 cameraId/storageId/objectHandle identity。
+- [ ] 下载完成后把 local path 挂回原 camera item。
+- [ ] 导出完成后把 exported path 挂回原 camera item。
+- [ ] filmstrip 缩略图显示小型“本地”标记。
+- [ ] inspector 显示 `Local` 状态以及 Cache / Exported 路径来源。
+- [ ] 下载中显示 `下载中` 状态。
+- [ ] 本地文件被移动/删除后显示 `本地文件丢失`。
+- [ ] 不能因为存在本地副本就在 camera catalog 里再复制一个 thumbnail/item。
+- [ ] localState 从 none -> available 的过程中保持 rating / Pick / Reject / selection 不变。
+
+**验收：** Z6III 上的一张照片下载成功后，原来的那张照片立即出现“本地”状态，并在不重新选择的情况下切到 Native Quality。
+
+---
+
+## 7. 统一 Camera / Local / Exported 显示模型
+
+推荐：
 
 ```ts
 type PhotoSource =
@@ -146,18 +206,8 @@ type PhotoSource =
   | {
       kind: "local";
       filePath: string;
-    }
-  | {
-      kind: "exported";
-      filePath: string;
-      sourceCameraId?: string;
-      sourceObjectHandle?: number;
     };
-```
 
-显示能力：
-
-```ts
 type DisplayAsset = {
   source: PhotoSource;
   localFilePath?: string;
@@ -170,11 +220,11 @@ type DisplayAsset = {
 路由规则：
 
 ```text
-localFilePath exists
+localState.available / localFilePath exists
     ↓
 Native Quality / QLPreviewView
 
-no localFilePath
+camera-only
     ↓
 Camera Review Quality
 ```
@@ -185,9 +235,106 @@ Camera Review Quality
 
 ---
 
+# P0 — Photo Metadata
+
+## 8. 补齐照片基础拍摄元信息
+
+元信息是预览器核心能力，不再只放到后续 Shooting Review。
+
+至少统一以下字段：
+
+```ts
+type PhotoMetadata = {
+  capturedAt?: string;
+  width?: number;
+  height?: number;
+
+  cameraMake?: string;
+  cameraModel?: string;
+  lensModel?: string;
+
+  focalLengthMm?: number;
+  focalLength35mm?: number;
+  apertureFNumber?: number;
+  exposureTimeSeconds?: number;
+  shutterSpeedLabel?: string;
+  iso?: number;
+  exposureCompensationEv?: number;
+
+  orientation?: number;
+  colorSpace?: string;
+  whiteBalance?: string;
+  meteringMode?: string;
+};
+```
+
+Inspector 第一优先展示：
+
+- [ ] 相机型号
+- [ ] 镜头型号
+- [ ] 焦段
+- [ ] 光圈
+- [ ] 快门
+- [ ] ISO
+- [ ] 拍摄时间
+- [ ] 图片尺寸
+
+可继续补：
+
+- [ ] 35mm 等效焦段
+- [ ] 曝光补偿
+- [ ] 白平衡
+- [ ] 测光模式
+- [ ] 色彩空间
+- [ ] orientation
+
+显示示例：
+
+```text
+Nikon Z6III
+NIKKOR Z 24-120mm f/4 S
+70 mm
+f/4
+1/250 s
+ISO 800
+2026-09-06 18:42:31
+6048 × 4032
+```
+
+### 本地文件 metadata
+
+```text
+Local Original
+-> ImageIO / CGImageSource metadata
+-> normalize PhotoMetadata
+-> inspector/catalog
+```
+
+- [ ] 本地 JPG/HEIC/PNG/TIFF/NEF 尽可能从原文件读取 metadata。
+- [ ] 相机下载/导出后，以本地原文件 metadata 为更高优先级来源。
+
+### Camera-only metadata
+
+```text
+Camera catalog first
+-> selected/visible photo
+-> lazy metadata request
+-> catalog merge
+```
+
+- [ ] 相机 catalog 首屏不能等待整卡 EXIF。
+- [ ] selected photo metadata 优先加载。
+- [ ] visible items 可低优先级加载。
+- [ ] metadata merge 不得覆盖 rating / Pick / Reject / preview / localState。
+- [ ] 明确区分 idle / loading / loaded / unavailable / error。
+
+**验收：** 本地 JPG 和 Z6III NEF 在有相应 EXIF 的情况下，都能看到镜头、焦段、光圈、快门、ISO、拍摄时间和尺寸；相机直连 selected item 也能渐进得到这些字段。
+
+---
+
 # P0 — Camera -> Native Quality
 
-## 6. 支持下载原图后高清查看
+## 9. 支持下载原图后高清查看
 
 相机初筛阶段保持快速 preview。
 
@@ -197,7 +344,8 @@ Camera Review Quality
 Camera Photo
 -> Download Original
 -> Managed Local Cache
--> localFilePath
+-> localState = available
+-> Local badge
 -> QLPreviewView
 -> Native Quality
 ```
@@ -205,7 +353,7 @@ Camera Photo
 - [ ] 新增下载原图用于预览的命令。
 - [ ] 保留 camera/storage/objectHandle 等 source identity。
 - [ ] 下载完成前继续显示 Review Quality。
-- [ ] 完整下载成功后再切 Native Quality。
+- [ ] 完整下载成功后原 camera item 自动切 Native Quality。
 - [ ] 失败/取消不破坏原有相机 preview。
 - [ ] 不因为左右快速切图自动下载大量 NEF 原图。
 - [ ] managed original cache 可清理、可失效、有大小策略。
@@ -214,18 +362,19 @@ Camera Photo
 
 ---
 
-## 7. 批量导出图片后直接进入 Native Quality
+## 10. 批量导出图片后直接进入 Native Quality
 
 ```text
 Selected Camera Photos
 -> Export Originals
 -> User Folder
--> exported localFilePath
+-> localState = available
+-> Local badge
 -> QLPreviewView
 ```
 
 - [ ] 每个成功导出的结果返回最终绝对文件路径。
-- [ ] 导出后将路径挂回对应 catalog item。
+- [ ] 导出后将路径挂回对应 camera catalog item。
 - [ ] 点击已导出图片时直接读取导出 original。
 - [ ] 不再复制一份预览 JPEG 到 app cache 才显示。
 - [ ] 保留 “Show in Finder”。
@@ -235,7 +384,7 @@ Selected Camera Photos
 
 # P0 — Native Quality Regression Gate
 
-## 8. 固化清晰度与色彩测试集
+## 11. 固化清晰度与色彩测试集
 
 至少准备：
 
@@ -274,7 +423,7 @@ vs Preview.app
 
 Native Preview Foundation 通过后继续优化相机初筛性能。
 
-## 9. Swift -> Rust -> React 真 streaming
+## 12. Swift -> Rust -> React 真 streaming
 
 当前 `photos:batch` 仍然是在 Rust 拿到完整 native catalog 后再 chunk。
 
@@ -288,7 +437,7 @@ Native Preview Foundation 通过后继续优化相机初筛性能。
 
 ---
 
-## 10. 轻量 Camera Catalog
+## 13. 轻量 Camera Catalog
 
 相机加载分层：
 
@@ -303,13 +452,13 @@ L3 EXIF        selected first, lazy enrichment
 - [ ] `listPhotos` 不再固定缓存前 80 张。
 - [ ] thumbnail 完全 viewport-driven。
 - [ ] selected preview 最高优先级。
-- [ ] EXIF lazy load。
+- [ ] EXIF lazy load，并复用统一 `PhotoMetadata` 模型。
 
 ---
 
 # P1 — Release Ready
 
-## 11. Swift camera helper Tauri sidecar
+## 14. Swift camera helper Tauri sidecar
 
 - [ ] release helper build。
 - [ ] helper 作为 Tauri sidecar/external binary 打包。
@@ -318,7 +467,7 @@ L3 EXIF        selected first, lazy enrichment
 - [ ] 删除发布版本对源码 `.build/debug` 路径依赖。
 - [ ] DMG 干净环境真机 smoke test。
 
-## 12. Signing / Notarization
+## 15. Signing / Notarization
 
 - [ ] Developer ID signing。
 - [ ] Hardened Runtime / entitlements。
@@ -331,7 +480,7 @@ L3 EXIF        selected first, lazy enrichment
 
 # P1 — Export Reliability
 
-## 13. 导出可靠性
+## 16. 导出可靠性
 
 - [ ] 整体/逐项 progress。
 - [ ] cancel。
@@ -346,7 +495,7 @@ L3 EXIF        selected first, lazy enrichment
 
 # P1 — Engineering Gate
 
-## 14. CI
+## 17. CI
 
 PR 至少运行：
 
@@ -361,7 +510,7 @@ PR 至少运行：
 
 # P2 — Nikon Metadata / RAW Workflow
 
-## 15. Nikon Rating Write-back
+## 18. Nikon Rating Write-back
 
 - [ ] 验证 Nikon Remote Module SDK 2.0.0 Z6III rating API。
 - [ ] 真实 capability probe。
@@ -369,7 +518,7 @@ PR 至少运行：
 - [ ] SDK 不支持时继续 local-only rating。
 - [ ] UI 区分 Local / Camera metadata 保存状态。
 
-## 16. RAW + JPG Pair
+## 19. RAW + JPG Pair
 
 - [ ] 同 stem `.NEF + .JPG` 合并为一个 review item。
 - [ ] camera review 阶段优先 JPG/embedded preview。
@@ -377,7 +526,9 @@ PR 至少运行：
 - [ ] rating / Pick 一次作用于 pair。
 - [ ] 导出支持 RAW / JPG / RAW+JPG。
 
-## 17. Shooting Review
+## 20. Shooting Review
+
+这里建立在已经完成的 `PhotoMetadata` 基础上，做分析而不是重新实现 EXIF：
 
 - [ ] lens / focal length / aperture / shutter / ISO 聚合。
 - [ ] keeper rate 与拍摄参数关联。
@@ -392,11 +543,13 @@ PR 至少运行：
 核心交付：
 
 - embedded `QLPreviewView`
+- Z6III / Local Folder source 切换
 - 本地目录加载
 - Quick Look thumbnails
+- 统一 PhotoMetadata（光圈/焦段/快门/ISO/镜头等）
 - 本地 original Native Quality
-- camera original download -> Native Quality
-- export original -> Native Quality
+- camera original download -> 原条目 Local 标记 -> Native Quality
+- export original -> 原条目 Local 标记 -> Native Quality
 - Finder Quick Look + Preview.app regression gate
 
 ## v0.3.0 — Fast Camera Culling
@@ -406,7 +559,7 @@ PR 至少运行：
 - true native catalog streaming
 - lightweight camera catalog
 - viewport thumbnails
-- lazy EXIF
+- camera lazy EXIF
 - 大卡浏览性能
 
 ## v0.4.0 — Distribution & Export Reliability
@@ -424,7 +577,7 @@ PR 至少运行：
 
 - Nikon rating write-back（SDK 支持时）
 - RAW+JPG pairing
-- shooting review
+- shooting review analytics
 
 ---
 
@@ -432,15 +585,17 @@ PR 至少运行：
 
 1. **QLPreviewView Tauri 内嵌 Spike：JPG + NEF**
 2. **Native Preview Bridge 稳定化**
-3. **本地目录 + QLThumbnailGenerator**
-4. **统一 Camera / Local / Exported source model**
-5. **Camera original download -> Native Quality**
-6. **Batch export -> Native Quality**
-7. **Native Quality regression gate**
-8. **Camera streaming / lightweight catalog**
-9. **Sidecar / signing / CI / export reliability**
-10. **Nikon SDK / RAW+JPG / Shooting Review**
+3. **Z6III / Local Folder source switch**
+4. **本地目录 + QLThumbnailGenerator**
+5. **统一 Camera / Local source + localState 模型**
+6. **统一 PhotoMetadata + Inspector 展示**
+7. **Camera original download -> Local 标记 -> Native Quality**
+8. **Batch export -> Local 标记 -> Native Quality**
+9. **Native Quality regression gate**
+10. **Camera streaming / lightweight catalog / lazy EXIF**
+11. **Sidecar / signing / CI / export reliability**
+12. **Nikon SDK / RAW+JPG / Shooting Review**
 
-下一阶段第一目标已经从“先发布”调整为：
+下一阶段第一目标：
 
-> **先建立一条长期稳定、没有清晰度妥协的 macOS Native Preview 基础链路，再让相机、本地和导出工作流全部接入它。**
+> **先建立一条长期稳定、没有清晰度妥协的 macOS Native Preview 基础链路，同时让 Z6III 与本地目录在同一工作区自由切换，并把“是否已有本地原图”和完整拍摄元信息变成照片的一等状态。**
