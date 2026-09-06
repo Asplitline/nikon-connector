@@ -4,13 +4,19 @@
 
 **Goal:** Evolve Nikon Connector from a camera-only first-pass culling tool into a unified macOS photo browser where camera review stays fast and every local/downloaded/exported original can be inspected at native macOS preview quality.
 
-**Architecture:** The next stage begins with a native preview engine embedded in the Tauri main window. React/Tauri remains the application shell; `QLPreviewView` becomes the authoritative local-original main preview, `QLThumbnailGenerator` handles local thumbnails, and the existing Swift ImageCaptureCore helper remains dedicated to camera/PTP access. After the native display foundation is stable, continue with camera streaming, release packaging, and export reliability.
+**Architecture:** The next stage begins with a native preview engine embedded in the Tauri main window. React/Tauri remains the application shell; `QLPreviewView` becomes the authoritative local-original main preview, `QLThumbnailGenerator` handles local thumbnails, and the existing Swift ImageCaptureCore helper remains dedicated to camera/PTP access. One workspace can switch between Nikon Z6III and a local folder, camera items keep their identity when local copies are created, and normalized shooting metadata is shared across camera/local paths.
 
 **Tech Stack:** Tauri 2, React 19, TypeScript, Rust, Swift, ImageCaptureCore, QuickLookUI, QuickLookThumbnailing, ImageIO, `objc2`, Vitest, Cargo tests, Swift Package Manager.
 
-**Primary Spec:** `docs/superpowers/specs/2026-09-06-native-preview-engine-design.md`
+**Primary Specs:**
 
-**Detailed Phase 1 Plan:** `docs/superpowers/plans/2026-09-06-native-preview-engine.md`
+- `docs/superpowers/specs/2026-09-06-native-preview-engine-design.md`
+- `docs/superpowers/specs/2026-09-06-source-switch-local-state-metadata-design.md`
+
+**Detailed v0.2 Plans:**
+
+- `docs/superpowers/plans/2026-09-06-native-preview-engine.md`
+- `docs/superpowers/plans/2026-09-06-source-switch-local-state-metadata.md`
 
 ## Global Constraints
 
@@ -18,7 +24,10 @@
 - Finder Quick Look is the primary Native Quality implementation baseline; Preview.app is the comparison baseline.
 - Once an original file is local, the main preview must not intentionally reduce quality through intermediate JPEG/PNG conversion.
 - The native preview remains embedded inside Nikon Connector.
-- Keep one review workspace and one photo identity model across camera, local, downloaded, and exported sources.
+- Keep one review workspace across Z6III and Local Folder sources.
+- Switching source must not disconnect a healthy Z6III session.
+- A downloaded/exported camera photo remains the same camera item and gains visible local availability.
+- Core metadata includes at least lens, focal length, aperture, shutter, ISO, capture time, and dimensions.
 - Keep one long-lived camera/PTP session and serialize camera operations.
 - Local rating and Pick/Reject remain usable while Nikon SDK rating write-back is unavailable.
 
@@ -26,18 +35,67 @@
 
 ## Phase 1 — v0.2.0 Native Photo Browser
 
-**Detailed implementation:** `docs/superpowers/plans/2026-09-06-native-preview-engine.md`
+### A. Native Preview Foundation
 
 - [ ] Embed `QLPreviewView` in the existing Tauri window and validate JPG + Z6III NEF.
 - [ ] Stabilize React placeholder -> AppKit native-view frame synchronization.
-- [ ] Add local folder loading into the existing review workspace.
-- [ ] Generate local filmstrip thumbnails with `QLThumbnailGenerator`.
-- [ ] Introduce unified `PhotoSource` / `DisplayAsset` routing.
-- [ ] Download a camera original into managed cache for Native Quality inspection.
-- [ ] Route successfully exported originals into the same Native Quality path.
-- [ ] Establish Finder Quick Look + Preview.app regression tests.
+- [ ] Use `QLThumbnailGenerator` for local filmstrip thumbnails.
+- [ ] Establish Finder Quick Look + Preview.app visual regression tests.
 
-**Gate:** No later phase should introduce another full-quality renderer. Local/downloaded/exported originals must converge on the same native preview engine.
+### B. Z6III / Local Folder Source Switching
+
+- [ ] Add one source selector for connected Nikon Z6III and Local Folder.
+- [ ] Switching to Local Folder opens a folder picker when needed.
+- [ ] Valid symlink folders are supported and canonicalized for identity/cache deduplication.
+- [ ] Switching back restores camera catalog selection/scroll/filter state.
+- [ ] Switching away from camera does not disconnect the healthy camera session.
+
+### C. Local Photo Browser
+
+- [ ] Load JPG/JPEG, HEIC/HEIF, PNG, TIFF/TIF, NEF/NRW from a local folder.
+- [ ] Reuse the existing review workspace, filmstrip virtualization, filter/sort, Pick/Reject, and rating flows.
+- [ ] Selected local originals always route to Native Quality.
+
+### D. Camera Item Local State
+
+- [ ] Add `localState`: none / downloading / available / missing.
+- [ ] Downloaded originals attach to the existing camera item.
+- [ ] Exported originals attach to the existing camera item.
+- [ ] Filmstrip shows a compact Local badge for `localState.available`.
+- [ ] Inspector shows Cache / Exported path state.
+- [ ] A selected camera item automatically upgrades to Native Quality when a valid local original becomes available.
+- [ ] Rating / Pick / Reject / selection identity survive the upgrade.
+
+### E. Core Photo Metadata
+
+- [ ] Normalize metadata fields across camera and local sources.
+- [ ] Show camera model and lens model.
+- [ ] Show focal length and optional 35mm equivalent.
+- [ ] Show aperture.
+- [ ] Show shutter/exposure time.
+- [ ] Show ISO.
+- [ ] Show capture time and dimensions.
+- [ ] Add exposure compensation, white balance, metering, color space, and orientation when available.
+- [ ] Read local metadata from the original file using ImageIO/CGImageSource.
+- [ ] Load camera-only selected-photo metadata lazily.
+- [ ] Never block initial camera catalog rendering on full-card EXIF.
+- [ ] Metadata merges preserve review/local/preview state.
+
+### F. Camera -> Native Quality
+
+- [ ] Add explicit download-original-for-preview flow.
+- [ ] Download to managed cache without changing camera identity.
+- [ ] After completion, mark the item Local and render the original through `QLPreviewView`.
+- [ ] Avoid automatically downloading many RAW originals during rapid culling.
+
+### G. Export -> Native Quality
+
+- [ ] Return final absolute destination path per exported photo.
+- [ ] Attach exported path to the original camera item.
+- [ ] Prefer exported original as Native Quality path when valid.
+- [ ] Preserve Finder handoff.
+
+**v0.2 Gate:** No later phase should introduce another full-quality renderer. Z6III and Local Folder share one workspace; downloaded/exported camera photos upgrade in place; core EXIF is visible; local originals converge on the same native preview engine.
 
 ---
 
@@ -69,7 +127,7 @@ L3 EXIF        selected first, lazy enrichment
 - [ ] Remove fixed first-80 thumbnail/preview pre-cache behavior.
 - [ ] Keep selected preview highest priority.
 - [ ] Make camera thumbnail loading viewport-driven.
-- [ ] Add batched lazy EXIF requests.
+- [ ] Reuse the v0.2 normalized metadata model for lazy camera EXIF.
 - [ ] Keep existing generation guards and preview cancellation behavior.
 
 **Performance targets:**
@@ -168,10 +226,11 @@ setPhotoRating({
 
 ### Task 9: Deepen shooting review
 
+This phase consumes the already-implemented core `PhotoMetadata` instead of implementing EXIF from scratch.
+
 - [ ] Lens/focal length/aperture/shutter/ISO aggregation.
 - [ ] Keeper-rate analysis by shooting parameters.
 - [ ] High-ISO / low-shutter risk ranges.
-- [ ] Lazy EXIF enrichment remains lower priority than selected preview responsiveness.
 
 ---
 
@@ -179,18 +238,20 @@ setPhotoRating({
 
 ```text
 1. Native Preview Spike (JPG + NEF)
-2. Local Photo Browser
-3. Quick Look local thumbnails
-4. Unified Camera/Local/Exported model
-5. Camera original -> Native Quality
-6. Exported original -> Native Quality
-7. Native Quality regression gate
-8. True camera catalog streaming
-9. Lightweight camera catalog / lazy EXIF
-10. Sidecar + signing/notarization
-11. Export reliability + CI
-12. Nikon SDK rating
-13. RAW+JPG pairing / Shooting Review
+2. Native Preview Bridge
+3. Z6III / Local Folder source switch
+4. Local folder catalog + Quick Look thumbnails
+5. Camera item localState + Local badge
+6. Core PhotoMetadata + inspector
+7. Camera original download -> same item -> Native Quality
+8. Exported original -> same item -> Native Quality
+9. Native Quality / source / metadata regression gate
+10. True camera catalog streaming
+11. Lightweight camera catalog / lazy camera EXIF
+12. Sidecar + signing/notarization
+13. Export reliability + CI
+14. Nikon SDK rating
+15. RAW+JPG pairing / Shooting Review analytics
 ```
 
-The architecture decision for this stage is therefore clear: **camera preview can stay optimized for first-pass speed; every original that exists locally converges on one native macOS preview path with no intentional quality compromise.**
+The architecture decision for this stage is clear: **camera preview can stay optimized for first-pass speed; Z6III and local files share one workspace; every original that exists locally is marked as such on the corresponding item and converges on one native macOS preview path; shooting metadata is core browser data rather than a future-only analytics feature.**
