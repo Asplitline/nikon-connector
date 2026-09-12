@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minus,
+  Plus,
+  Star,
+  X,
+} from "lucide-react";
 import { type Locale, t } from "../../i18n";
 import { writeAppLog } from "../../lib/appApi";
 import { imageSource } from "../../lib/format";
@@ -17,13 +27,18 @@ import {
 } from "./zoom";
 import { iconButtonClass, zoomTextButtonClass } from "../app/buttonStyles";
 import { filmstripItemClass, reviewImageClass } from "./photoStyles";
+import { PhotoQuickInfo } from "./PhotoQuickInfo";
 import { resolvePreviewSwapState } from "./previewSwap";
 import { StarRating } from "./StarRating";
 
 // 照片舞台：缩放工具栏 + 主预览图。空态由调用方以 children 传入
 export function PhotoStage({
+  bottomAccessory,
+  chromeVisible = true,
   disabled = false,
+  infoVisible = false,
   locale,
+  onInfoToggle,
   onNext,
   onPrevious,
   onMark,
@@ -33,8 +48,12 @@ export function PhotoStage({
   zoom,
   zoomLabel,
 }: {
+  bottomAccessory?: ReactNode;
+  chromeVisible?: boolean;
   disabled?: boolean;
+  infoVisible?: boolean;
   locale: Locale;
+  onInfoToggle?: () => void;
   onNext: () => void;
   onPrevious: () => void;
   onMark: (status: PickStatus) => void;
@@ -48,51 +67,58 @@ export function PhotoStage({
 
   return (
     <>
-      <div className="absolute bottom-5 right-5 z-10 flex items-center gap-1 rounded-md border border-stage-line bg-stage-toolbar p-1 text-on-image opacity-0 shadow-[0_12px_32px_color-mix(in_oklch,var(--app-ink)_22%,transparent)] transition-opacity duration-300 group-hover:opacity-100 focus-within:opacity-100 max-sm:right-3 max-sm:top-3 max-sm:bottom-auto max-sm:opacity-100">
-        <button
-          aria-label={t("zoom.out", undefined, locale)}
-          className={iconButtonClass}
-          onClick={() => onZoomAction("out")}
-          title={t("zoom.outTitle", undefined, locale)}
-          type="button"
-        >
-          −
-        </button>
-        <span className="min-w-11 text-center text-ui-md font-ui-700 text-on-image">{zoomLabel}</span>
-        <button
-          aria-label={t("zoom.in", undefined, locale)}
-          className={iconButtonClass}
-          onClick={() => onZoomAction("in")}
-          title={t("zoom.inTitle", undefined, locale)}
-          type="button"
-        >
-          +
-        </button>
-        <button
-          className={zoomTextButtonClass}
-          onClick={() => onZoomAction(zoom.mode === "fit" ? "actual" : "fit")}
-          title={zoom.mode === "fit" ? t("zoom.actual", undefined, locale) : t("zoom.fitTitle", undefined, locale)}
-          type="button"
-        >
-          ⛶
-        </button>
-      </div>
-      <button
-        aria-label={t("photo.previous", undefined, locale)}
-        className="absolute left-0 top-1/2 z-10 grid h-[112px] w-14 -translate-y-1/2 place-items-center rounded-r-md bg-stage-toolbar text-4xl leading-none text-on-image opacity-0 transition-opacity duration-300 hover:opacity-85 group-hover:opacity-45 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus max-sm:opacity-55"
-        onClick={onPrevious}
-        type="button"
-      >
-        ‹
-      </button>
-      <button
-        aria-label={t("photo.next", undefined, locale)}
-        className="absolute right-0 top-1/2 z-10 grid h-[112px] w-14 -translate-y-1/2 place-items-center rounded-l-md bg-stage-toolbar text-4xl leading-none text-on-image opacity-0 transition-opacity duration-300 hover:opacity-85 group-hover:opacity-45 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus max-sm:opacity-55"
-        onClick={onNext}
-        type="button"
-      >
-        ›
-      </button>
+      {chromeVisible && onInfoToggle && infoVisible ? (
+        <PhotoQuickInfo locale={locale} onToggle={onInfoToggle} photo={photo} />
+      ) : null}
+      {chromeVisible ? (
+        <>
+          <div className="absolute bottom-5 right-5 z-10 flex items-center gap-1 rounded-md border border-stage-line bg-stage-toolbar p-1 text-on-image opacity-0 shadow-[0_12px_32px_color-mix(in_oklch,var(--app-ink)_22%,transparent)] transition-opacity duration-300 group-hover:opacity-100 focus-within:opacity-100 max-sm:right-3 max-sm:top-3 max-sm:bottom-auto max-sm:opacity-100">
+            <button
+              aria-label={t("zoom.out", undefined, locale)}
+              className={iconButtonClass}
+              onClick={() => onZoomAction("out")}
+              title={t("zoom.outTitle", undefined, locale)}
+              type="button"
+            >
+              <Minus aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+            </button>
+            <span className="min-w-11 text-center text-ui-md font-ui-700 text-on-image">{zoomLabel}</span>
+            <button
+              aria-label={t("zoom.in", undefined, locale)}
+              className={iconButtonClass}
+              onClick={() => onZoomAction("in")}
+              title={t("zoom.inTitle", undefined, locale)}
+              type="button"
+            >
+              <Plus aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+            </button>
+            <button
+              className={zoomTextButtonClass}
+              onClick={() => onZoomAction(zoom.mode === "fit" ? "actual" : "fit")}
+              title={zoom.mode === "fit" ? t("zoom.actual", undefined, locale) : t("zoom.fitTitle", undefined, locale)}
+              type="button"
+            >
+              <Maximize2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+            </button>
+          </div>
+          <button
+            aria-label={t("photo.previous", undefined, locale)}
+            className="absolute left-0 top-1/2 z-10 grid h-[112px] w-14 -translate-y-1/2 place-items-center rounded-r-md bg-stage-toolbar text-on-image opacity-0 transition-opacity duration-300 hover:opacity-85 group-hover:opacity-45 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus max-sm:opacity-55"
+            onClick={onPrevious}
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" className="h-8 w-8" strokeWidth={1.55} />
+          </button>
+          <button
+            aria-label={t("photo.next", undefined, locale)}
+            className="absolute right-0 top-1/2 z-10 grid h-[112px] w-14 -translate-y-1/2 place-items-center rounded-l-md bg-stage-toolbar text-on-image opacity-0 transition-opacity duration-300 hover:opacity-85 group-hover:opacity-45 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus max-sm:opacity-55"
+            onClick={onNext}
+            type="button"
+          >
+            <ChevronRight aria-hidden="true" className="h-8 w-8" strokeWidth={1.55} />
+          </button>
+        </>
+      ) : null}
       {hasAnyPreviewSource ? (
         <PhotoPreviewImage
           key={`${photo.id}:${zoom.mode === "scaled" && zoom.scale > 1 ? "draggable" : "locked"}`}
@@ -106,45 +132,54 @@ export function PhotoStage({
           {t("photo.previewUnavailable", undefined, locale)}
         </div>
       )}
-      <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-md border border-stage-line bg-stage-toolbar px-2.5 py-1.5 text-on-image opacity-0 shadow-[0_14px_36px_color-mix(in_oklch,var(--app-ink)_22%,transparent)] transition-opacity duration-300 group-hover:opacity-100 focus-within:opacity-100 max-sm:bottom-3 max-sm:opacity-100">
-        <StarRating
-          disabled={disabled}
-          labels={{
-            clear: t("rating.clear", undefined, locale),
-            rating: (value) => t("rating.label", { value }, locale),
-            star: (value) => t("rating.star", { value }, locale),
-          }}
-          onChange={onRate}
-          value={photo.rating}
-          variant="overlay"
-        />
-        <span className="h-5 w-px bg-stage-line" aria-hidden="true" />
-        <button
-          className={[
-            "min-h-8 rounded-md px-2.5 text-ui-sm font-ui-760 transition hover:bg-[color-mix(in_oklch,currentColor_12%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
-            photo.pickStatus === "picked" ? "text-star" : "text-on-image/78",
-          ].join(" ")}
-          disabled={disabled}
-          onClick={() => onMark(photo.pickStatus === "picked" ? "none" : "picked")}
-          title={t("pick.toggleTitle", undefined, locale)}
-          type="button"
-        >
-          ✓ {t("pick.picked", undefined, locale)}
-        </button>
-        <button
-          aria-label={t("pick.reject", undefined, locale)}
-          className={[
-            "grid h-8 w-8 place-items-center rounded-md text-base font-ui-760 transition hover:bg-[color-mix(in_oklch,currentColor_12%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
-            photo.pickStatus === "rejected" ? "text-danger" : "text-on-image/68",
-          ].join(" ")}
-          disabled={disabled}
-          onClick={() => onMark(photo.pickStatus === "rejected" ? "none" : "rejected")}
-          title={t("pick.rejectTitle", undefined, locale)}
-          type="button"
-        >
-          ×
-        </button>
-      </div>
+      {chromeVisible ? (
+        <div className="absolute bottom-5 left-1/2 z-10 flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-md border border-stage-line bg-stage-toolbar px-2.5 py-1.5 text-on-image opacity-0 shadow-[0_14px_36px_color-mix(in_oklch,var(--app-ink)_22%,transparent)] transition-opacity duration-300 group-hover:opacity-100 focus-within:opacity-100 max-sm:bottom-3 max-sm:opacity-100">
+          <StarRating
+            disabled={disabled}
+            labels={{
+              clear: t("rating.clear", undefined, locale),
+              rating: (value) => t("rating.label", { value }, locale),
+              star: (value) => t("rating.star", { value }, locale),
+            }}
+            onChange={onRate}
+            value={photo.rating}
+            variant="overlay"
+          />
+          <span className="h-5 w-px bg-stage-line" aria-hidden="true" />
+          <button
+            className={[
+              "flex min-h-8 items-center gap-1.5 rounded-md px-2.5 text-ui-sm font-ui-760 transition hover:bg-[color-mix(in_oklch,currentColor_12%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+              photo.pickStatus === "picked" ? "text-star" : "text-on-image/78",
+            ].join(" ")}
+            disabled={disabled}
+            onClick={() => onMark(photo.pickStatus === "picked" ? "none" : "picked")}
+            title={t("pick.toggleTitle", undefined, locale)}
+            type="button"
+          >
+            <Check aria-hidden="true" className="h-4 w-4" strokeWidth={1.9} />
+            {t("pick.picked", undefined, locale)}
+          </button>
+          <button
+            aria-label={t("pick.reject", undefined, locale)}
+            className={[
+              "grid h-8 w-8 place-items-center rounded-md text-base font-ui-760 transition hover:bg-[color-mix(in_oklch,currentColor_12%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+              photo.pickStatus === "rejected" ? "text-danger" : "text-on-image/68",
+            ].join(" ")}
+            disabled={disabled}
+            onClick={() => onMark(photo.pickStatus === "rejected" ? "none" : "rejected")}
+            title={t("pick.rejectTitle", undefined, locale)}
+            type="button"
+          >
+            <X aria-hidden="true" className="h-4 w-4" strokeWidth={1.9} />
+          </button>
+          {bottomAccessory ? (
+            <>
+              <span className="h-5 w-px bg-stage-line" aria-hidden="true" />
+              {bottomAccessory}
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </>
   );
 }
@@ -530,9 +565,18 @@ export function Filmstrip({
               ) : null}
               <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-[linear-gradient(to_top,color-mix(in_oklch,var(--app-ink)_78%,transparent),transparent)] px-2 pb-2 pt-8 text-[11px] font-ui-760 text-on-image opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
                 <span className="min-w-0 truncate">{photo.fileName}</span>
-                <span className="shrink-0">
-                  {photo.pickStatus === "picked" ? "✓" : photo.pickStatus === "rejected" ? "×" : ""}
-                  {photo.rating ? ` ${photo.rating}★` : ""}
+                <span className="flex shrink-0 items-center gap-1">
+                  {photo.pickStatus === "picked" ? (
+                    <Check aria-hidden="true" className="h-3 w-3" strokeWidth={2} />
+                  ) : photo.pickStatus === "rejected" ? (
+                    <X aria-hidden="true" className="h-3 w-3" strokeWidth={2} />
+                  ) : null}
+                  {photo.rating ? (
+                    <span className="flex items-center gap-0.5">
+                      {photo.rating}
+                      <Star aria-hidden="true" className="h-3 w-3 fill-current" strokeWidth={1.7} />
+                    </span>
+                  ) : null}
                 </span>
               </span>
               {isSelected ? (

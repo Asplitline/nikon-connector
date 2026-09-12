@@ -24,7 +24,7 @@ function App() {
   const [zoom, setZoom] = useState<PhotoZoomState>(() => createFitZoomState());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [connectionCheckOpen, setConnectionCheckOpen] = useState(false);
-  const [catalogFilter, setCatalogFilter] = useState<PhotoCatalogFilter>("all");
+  const catalogFilter: PhotoCatalogFilter = "all";
   const [catalogSort, setCatalogSort] = useState<PhotoCatalogSort>("captured_asc");
   const [exportMode, setExportMode] = useState<ExportMode>("picked");
   const [exportDestination, setExportDestination] = useState("");
@@ -149,12 +149,10 @@ function App() {
   // 按「同一件事」把 props 分组后再下发,让区域组件的入参保持在阈值内
   const catalogControls = useMemo(
     () => ({
-      filter: catalogFilter,
-      onFilterChange: setCatalogFilter,
       onSortChange: setCatalogSort,
       sort: catalogSort,
     }),
-    [catalogFilter, catalogSort],
+    [catalogSort],
   );
 
   const exportControls = useMemo(
@@ -198,6 +196,7 @@ function App() {
     connectionState: camera.connectionState,
     filter: catalogFilter,
     onMark: handleMark,
+    onOpenComment: () => setInspectorOpen(true),
     onRate: handleRate,
     onToggleInspector: () => setInspectorOpen((open) => !open),
     selectedPhoto: review.selectedPhoto,

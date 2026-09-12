@@ -4,7 +4,7 @@ enum Command {
     case cachePhotoPreview(cameraId: String, photoId: String, cacheDir: String)
     case cachePhotoPreviews(cameraId: String, photoIds: [String], previewPhotoIds: [String], cacheDir: String)
     case exportPhotos(cameraId: String, destinationDir: String, photoIds: [String])
-    case setRating(photoId: String, rating: Int)
+    case setRating(cameraId: String, photoId: String, rating: Int)
 
     static func parse(_ args: [String]) throws -> Command {
         guard let name = args.first else { throw HelperError.message("Missing command.") }
@@ -36,12 +36,13 @@ enum Command {
                 photoIds: values(after: "--photo-id", in: args)
             )
         case "set-rating":
+            let cameraId = try value(after: "--camera-id", in: args)
             let photoId = try value(after: "--photo-id", in: args)
             let ratingText = try value(after: "--rating", in: args)
             guard let rating = Int(ratingText), (0...5).contains(rating) else {
                 throw HelperError.message("Rating must be between 0 and 5.")
             }
-            return .setRating(photoId: photoId, rating: rating)
+            return .setRating(cameraId: cameraId, photoId: photoId, rating: rating)
         default:
             throw HelperError.message("Unknown command: \(name).")
         }

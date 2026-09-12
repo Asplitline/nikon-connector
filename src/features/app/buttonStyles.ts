@@ -10,7 +10,7 @@ const compactSize = "min-h-[34px] w-full px-2.5 text-ui-lg";
 
 const tone: Record<ButtonVariant, string> = {
   primary:
-    "bg-ink text-on-image disabled:border disabled:border-line disabled:bg-surface disabled:text-muted disabled:opacity-100",
+    "bg-ink text-on-ink disabled:border disabled:border-line disabled:bg-surface disabled:text-muted disabled:opacity-100",
   secondary: "border border-line bg-surface text-ink",
 };
 

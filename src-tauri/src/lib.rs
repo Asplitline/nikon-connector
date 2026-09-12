@@ -1,11 +1,10 @@
 mod camera;
 pub mod logging;
-mod nikon_sdk;
-mod rating;
 
 use camera::{CachedPhotoPreview, CameraDevice, CameraPhoto, ExportPhotosSummary};
 use logging::{LogInfo, LogLevel};
 use serde::Serialize;
+use std::{path::PathBuf, process::Command};
 use tauri::Emitter;
 
 #[derive(Serialize)]
@@ -158,6 +157,7 @@ fn cache_photo_previews(
 #[tauri::command]
 fn set_photo_rating(
     app: tauri::AppHandle,
+    camera_id: &str,
     photo_id: String,
     rating: u8,
 ) -> Result<CameraPhoto, String> {
@@ -165,10 +165,10 @@ fn set_photo_rating(
         &app,
         LogLevel::Info,
         "backend.set_photo_rating",
-        &format!("setting rating {rating} for photo {photo_id}"),
+        &format!("setting rating {rating} for photo {photo_id} on camera {camera_id}"),
     );
 
-    match rating::set_photo_rating(photo_id.clone(), rating) {
+    match camera::set_photo_rating(camera_id, &photo_id, rating) {
         Ok(photo) => Ok(photo),
         Err(error) => {
             let _ = logging::write_client_log(
@@ -270,6 +270,51 @@ fn export_logs(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn clear_logs(app: tauri::AppHandle) -> Result<LogInfo, String> {
+    let log_dir = logging::log_dir(&app)?;
+    logging::clear_log_files(&log_dir)?;
+    logging::collect_log_info(&log_dir)
+}
+
+#[tauri::command]
+fn reveal_path(path: &str) -> Result<(), String> {
+    let target = logging::reveal_target_for_path(&PathBuf::from(path));
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = Command::new("open");
+        if target.is_file() {
+            command.arg("-R");
+        }
+
+        let status = command
+            .arg(&target)
+            .status()
+            .map_err(|error| format!("Could not open Finder: {error}"))?;
+
+        if status.success() {
+            return Ok(());
+        }
+
+        return Err(format!("Finder exited with status {status}."));
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let status = Command::new("xdg-open")
+            .arg(&target)
+            .status()
+            .map_err(|error| format!("Could not open the file manager: {error}"))?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("File manager exited with status {status}."))
+        }
+    }
+}
+
+#[tauri::command]
 fn write_client_log(
     app: tauri::AppHandle,
     level: &str,
@@ -299,6 +344,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             cache_photo_preview,
             cache_photo_previews,
+            clear_logs,
             export_logs,
             get_app_info,
             get_log_info,
@@ -306,6 +352,7 @@ pub fn run() {
             list_cameras,
             list_photos,
             open_image_capture,
+            reveal_path,
             set_photo_rating,
             write_client_log
         ])

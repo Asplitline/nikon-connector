@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   getCatalogView,
   selectPhotoByOffset,
@@ -7,7 +7,7 @@ import {
   type PhotoCatalogSort,
 } from "../photos/catalog";
 import {
-  getPhotoReviewShortcut,
+  createPhotoReviewShortcutResolver,
   shouldIgnorePhotoReviewShortcut,
 } from "../photos/keyboard";
 import type {
@@ -23,8 +23,9 @@ import { applyZoomAction, createFitZoomState, type PhotoZoomState } from "../pho
 export function useReviewKeyboard({
   connectionState,
   filter,
-  onRate,
   onMark,
+  onOpenComment,
+  onRate,
   onToggleInspector,
   selectedPhoto,
   setCatalog,
@@ -33,23 +34,31 @@ export function useReviewKeyboard({
 }: {
   connectionState: CameraConnectionState;
   filter: PhotoCatalogFilter;
-  onRate: (photo: CameraPhoto, rating: Rating) => void;
   onMark: (photo: CameraPhoto, status: PickStatus) => void;
+  onOpenComment: () => void;
+  onRate: (photo: CameraPhoto, rating: Rating) => void;
   onToggleInspector: () => void;
   selectedPhoto: CameraPhoto | undefined;
   setCatalog: React.Dispatch<React.SetStateAction<PhotoCatalogState>>;
   setZoom: React.Dispatch<React.SetStateAction<PhotoZoomState>>;
   sort: PhotoCatalogSort;
 }) {
+  const resolveShortcutRef = useRef(createPhotoReviewShortcutResolver());
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (shouldIgnorePhotoReviewShortcut(event.target)) {
         return;
       }
 
-      const shortcut = getPhotoReviewShortcut(event.key);
+      const shortcut = resolveShortcutRef.current(event.key);
 
       if (!shortcut) {
+        return;
+      }
+
+      if (shortcut.type === "ratePrefix") {
+        event.preventDefault();
         return;
       }
 
@@ -90,6 +99,12 @@ export function useReviewKeyboard({
         return;
       }
 
+      if (shortcut.type === "comment" && selectedPhoto) {
+        event.preventDefault();
+        onOpenComment();
+        return;
+      }
+
       if (shortcut.type === "zoom" && selectedPhoto) {
         event.preventDefault();
         setZoom((current) => applyZoomAction(current, shortcut.action));
@@ -105,6 +120,7 @@ export function useReviewKeyboard({
     connectionState,
     filter,
     onMark,
+    onOpenComment,
     onRate,
     onToggleInspector,
     selectedPhoto,

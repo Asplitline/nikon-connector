@@ -1,103 +1,80 @@
-# Changelog
+# 发布日志
 
-All notable changes to Nikon Connector are documented in this file.
+Nikon Connector 的所有重要变更都会记录在这里。
 
-This project follows SemVer and keeps release notes in Keep a Changelog style.
+本项目遵循 SemVer，并按 Keep a Changelog 风格维护发布记录。
 
 ## [Unreleased]
 
 ## [0.1.7] - 2026-09-06
 
-### Added
+### 新增
 
-- Render cached display previews for NEF files when the camera does not expose
-  directly viewable originals.
-- Show shooting metadata in the photo details panel.
-- Add release notes and update-feed links to the settings panel.
+- 当相机不提供可直接查看的原片时，为 NEF 文件渲染缓存的显示预览。
+- 在照片详情面板中显示拍摄元数据。
+- 在设置面板中加入发布日志和更新源链接。
 
-### Changed
+### 变更
 
-- Refined the photo review workspace layout, controls, zoom behavior, and
-  filmstrip handling for faster culling.
-- Prioritize clearer previews while preloading around the current filmstrip
-  window.
+- 优化照片筛选工作区布局、控件、缩放行为和胶片条操作，让筛片更快。
+- 围绕当前胶片条窗口预加载时，优先获取更清晰的预览。
 
-### Fixed
+### 修复
 
-- Derive preview preload counts from the active filmstrip window to avoid
-  over-fetching previews outside the visible review range.
+- 根据当前胶片条窗口计算预览预加载数量，避免过度获取可见筛选范围之外的预览。
 
 ## [0.1.6] - 2026-09-04
 
-### Changed
+### 变更
 
-- Camera helper now runs as a persistent daemon over NDJSON instead of one
-  subprocess per request, so the fixed ImageCaptureCore cost (device scan,
-  session open, catalog wait) is paid once per app session rather than once
-  per preview batch. Measured locally: ten requests cost the same 8s as one,
-  where the previous architecture needed ~30s.
-- Photo enumeration streams to the UI in batches through a `photos:batch`
-  event, so the first thumbnails appear without waiting for the whole card.
-- Preview requests are debounced and cancellable, so holding an arrow key no
-  longer stacks one backend round-trip per keypress.
-- The filmstrip is virtualized and thumbnails load lazily, so a large card no
-  longer mounts one DOM node per photo.
+- 相机 helper 改为通过 NDJSON 运行常驻守护进程，而不是每个请求启动一个子进程。这样 ImageCaptureCore 的固定成本（设备扫描、打开会话、等待目录）每个应用会话只需支付一次，而不是每批预览都支付一次。本地测量中，十个请求和一个请求同样约 8 秒，旧架构约需 30 秒。
+- 照片枚举通过 `photos:batch` 事件分批流式送到界面，因此第一批缩略图无需等待整张卡枚举完成即可出现。
+- 预览请求支持防抖和取消，按住方向键时不会再让每次按键都堆积一次后端往返。
+- 胶片条改为虚拟化并懒加载缩略图，大容量存储卡不会再为每张照片都挂载一个 DOM 节点。
 
 ## [0.1.4] - 2026-09-03
 
-### Added
+### 新增
 
-- Real Nikon Z6III camera discovery.
-- Camera-card photo enumeration.
-- Local thumbnail and preview caching.
-- Direct-culling filters and sorting for unrated, rated, 3+, 4+, 5-star,
-  capture-time, filename, and rating review workflows.
-- Local rating persistence for filtering and selective export while Nikon SDK
-  write-back is unavailable.
-- Selective export controls and a macOS ImageCaptureCore export command path
-  for copying chosen camera-card originals after culling.
-- Shooting review summary with rated, keeper, keep-rate, format mix, and
-  unrated counts.
-- Official Nikon SDK rating write-back when supported by the installed SDK;
-  this is not currently confirmed or enabled.
-- Photo preview zoom controls with keyboard shortcuts for zoom in, zoom out,
-  fit-to-window, and actual-size review.
-- Settings panel with software version, development log, update feed, and
-  update check/install controls.
-- Tauri updater integration for GitHub Releases `latest.json` feeds.
+- 支持发现真实的 Nikon Z6III 相机。
+- 支持枚举相机存储卡中的照片。
+- 支持本地缩略图和预览缓存。
+- 为未评级、已评级、3 星以上、4 星以上、5 星、拍摄时间、文件名和评级筛选流程加入直接筛片过滤与排序。
+- 在 Nikon SDK 写回不可用时，将本地评级持久化，用于过滤和选择性导出。
+- 加入选择性导出控件，以及 macOS ImageCaptureCore 导出命令路径，用于筛片后复制选中的相机卡原片。
+- 加入拍摄筛选摘要，显示已评级、保留、保留率、格式构成和未评级数量。
+- 预留官方 Nikon SDK 评级写回能力，在已安装 SDK 支持时使用；目前尚未确认或启用。
+- 加入照片预览缩放控件，并支持放大、缩小、适合窗口和实际大小查看的键盘快捷键。
+- 设置面板加入软件版本、开发日志、更新源，以及检查/安装更新控件。
+- 集成 Tauri 更新器，支持 GitHub Releases 的 `latest.json` 更新源。
 
 ## [0.1.3] - 2026-09-01
 
-### Changed
+### 变更
 
-- Release packaging now publishes a macOS DMG installer asset instead of a
-  source-style app archive.
-- GitHub Release notes are generated from the matching `CHANGELOG.md` version
-  section so each tag displays the latest changes and features.
+- 发布打包现在发布 macOS DMG 安装器资源，而不是源码风格的应用归档。
+- GitHub Release 说明由 `CHANGELOG.md` 中匹配的版本段落生成，让每个标签都显示对应的最新变更和功能。
 
-### Fixed
+### 修复
 
-- Narrowed photo review keyboard shortcuts before applying ratings so zoom
-  shortcuts do not break TypeScript release builds.
+- 在应用评级前缩小照片筛选键盘快捷键的处理范围，避免缩放快捷键破坏 TypeScript 发布构建。
 
 ## [0.1.2] - 2026-09-01
 
-### Added
+### 新增
 
-- GitHub Release publishing commands that push the release tag and upload the
-  packaged macOS artifact.
+- 加入 GitHub Release 发布命令，可推送发布标签并上传打包后的 macOS 产物。
 
 ## [0.1.1] - 2026-09-01
 
-### Added
+### 新增
 
-- Local tag-driven release workflow with version synchronization and Tauri
-  packaging commands.
+- 加入本地标签驱动发布流程，包含版本同步和 Tauri 打包命令。
 
 ## [0.1.0] - 2026-08-31
 
-### Added
+### 新增
 
-- Initialized the Nikon Connector Tauri app with React, TypeScript, and Vite.
-- Added the first mock camera/photo workflow and rating command contracts.
-- Documented the real-camera integration direction for Nikon Z6III support.
+- 使用 React、TypeScript 和 Vite 初始化 Nikon Connector Tauri 应用。
+- 加入第一版模拟相机/照片流程和评级命令契约。
+- 记录 Nikon Z6III 真实相机集成方向。

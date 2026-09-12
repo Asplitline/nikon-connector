@@ -28,6 +28,7 @@
   --color-info: var(--app-info);
   --color-info-bg: var(--app-info-bg);
   --color-on-image: var(--app-on-image);
+  --color-on-ink: var(--app-on-ink);
   --color-ready-soft: var(--app-ready-soft);
   --color-ready-strong: var(--app-ready-strong);
   --color-ready-line: var(--app-ready-line);
@@ -117,6 +118,7 @@
   --app-info: oklch(0.48 0.08 235);
   --app-info-bg: oklch(0.955 0.025 235);
   --app-on-image: oklch(0.982 0.006 83);
+  --app-on-ink: oklch(0.982 0.006 83);
   --app-ready-soft: color-mix(in oklch, var(--app-ready) 14%, var(--app-surface));
   --app-ready-strong: color-mix(in oklch, var(--app-ready) 64%, var(--app-ink));
   --app-ready-line: color-mix(in oklch, var(--app-ready) 45%, var(--app-line));
@@ -153,6 +155,7 @@
   --app-info: oklch(0.74 0.08 235);
   --app-info-bg: oklch(0.27 0.03 235);
   --app-on-image: oklch(0.982 0.006 83);
+  --app-on-ink: oklch(0.16 0.006 78);
   --app-ready-soft: color-mix(in oklch, var(--app-ready) 14%, var(--app-surface));
   --app-ready-strong: color-mix(in oklch, var(--app-ready) 64%, var(--app-ink));
   --app-ready-line: color-mix(in oklch, var(--app-ready) 45%, var(--app-line));

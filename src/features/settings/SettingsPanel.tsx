@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
+import { ExternalLink, FolderOpen, Trash2, X } from "lucide-react";
 import { defaultLocale, locales, type Locale, t } from "../../i18n";
 import type { AppInfo, LogInfo } from "../../lib/appApi";
 import { formatBytes } from "../../lib/format";
@@ -18,8 +19,11 @@ export function SettingsPanel({
   logStatus,
   locale = defaultLocale,
   onCheckForUpdate,
+  onClearLogs,
   onClose,
   onExportLogs,
+  onRevealExportLog,
+  onRevealLog,
   onInstallUpdate,
   onLocaleChange,
   onThemeChange,
@@ -33,8 +37,11 @@ export function SettingsPanel({
   logStatus: LogStatus;
   locale?: Locale;
   onCheckForUpdate: () => void;
+  onClearLogs: () => void;
   onClose: () => void;
   onExportLogs: () => void;
+  onRevealExportLog: () => void;
+  onRevealLog: () => void;
   onInstallUpdate: () => void;
   onLocaleChange: (locale: Locale) => void;
   onThemeChange: (theme: ThemeMode) => void;
@@ -70,7 +77,7 @@ export function SettingsPanel({
             onClick={onClose}
             type="button"
           >
-            ×
+            <X aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
           </button>
         </header>
 
@@ -131,7 +138,10 @@ export function SettingsPanel({
                 locale={locale}
                 logInfo={logInfo}
                 logStatus={logStatus}
+                onClearLogs={onClearLogs}
                 onExportLogs={onExportLogs}
+                onRevealExportLog={onRevealExportLog}
+                onRevealLog={onRevealLog}
               />
             </SettingsTabPanel>
 
@@ -313,42 +323,74 @@ function LogSection({
   locale,
   logInfo,
   logStatus,
+  onClearLogs,
   onExportLogs,
+  onRevealExportLog,
+  onRevealLog,
 }: {
   locale: Locale;
   logInfo: LogInfo | null;
   logStatus: LogStatus;
+  onClearLogs: () => void;
   onExportLogs: () => void;
+  onRevealExportLog: () => void;
+  onRevealLog: () => void;
 }) {
   const loading = t("settings.loading", undefined, locale);
+  const isBusy = logStatus === "clearing" || logStatus === "exporting";
 
   return (
     <section>
       <div className="flex items-center justify-between gap-4">
         <p className="section-label">{t("settings.diagnosticLogs", undefined, locale)}</p>
-        <button
-          className={buttonClass("secondary", { compact: true })}
-          disabled={logStatus === "exporting"}
-          onClick={onExportLogs}
-          type="button"
-        >
-          {logStatus === "exporting"
-            ? t("settings.exportingLogs", undefined, locale)
-            : t("settings.exportLogs", undefined, locale)}
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            className={buttonClass("secondary", {
+              compact: true,
+              extra: "inline-flex items-center justify-center gap-1.5",
+            })}
+            disabled={isBusy}
+            onClick={onClearLogs}
+            type="button"
+          >
+            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.8} />
+            {logStatus === "clearing"
+              ? t("settings.clearingLogs", undefined, locale)
+              : t("settings.clearLogs", undefined, locale)}
+          </button>
+          <button
+            className={buttonClass("secondary", { compact: true })}
+            disabled={isBusy}
+            onClick={onExportLogs}
+            type="button"
+          >
+            {logStatus === "exporting"
+              ? t("settings.exportingLogs", undefined, locale)
+              : t("settings.exportLogs", undefined, locale)}
+          </button>
+        </div>
       </div>
+      <p className="mt-3 text-ui-lg leading-6 text-muted">
+        {t("settings.logHelp", undefined, locale)}
+      </p>
       <dl className="mt-4 grid gap-3 text-sm">
         <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 border-b border-b-line-soft pb-3">
           <dt className="text-muted">{t("settings.logFile", undefined, locale)}</dt>
-          <SettingsValue locale={locale} openableValue={logInfo?.logPath}>
-            {logInfo?.logPath ?? loading}
-          </SettingsValue>
+          <LogFileValue
+            actionLabel={t("settings.revealLog", undefined, locale)}
+            onReveal={onRevealLog}
+            path={logInfo?.logPath}
+            value={logInfo?.logPath ? fileNameFromPath(logInfo.logPath) : loading}
+          />
         </div>
         <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 border-b border-b-line-soft pb-3">
           <dt className="text-muted">{t("settings.exportFile", undefined, locale)}</dt>
-          <SettingsValue locale={locale} openableValue={logInfo?.exportPath}>
-            {logInfo?.exportPath ?? loading}
-          </SettingsValue>
+          <LogFileValue
+            actionLabel={t("settings.revealExportLog", undefined, locale)}
+            onReveal={onRevealExportLog}
+            path={logInfo?.exportPath}
+            value={logInfo?.exportPath ? fileNameFromPath(logInfo.exportPath) : loading}
+          />
         </div>
         <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 border-b border-b-line-soft pb-3">
           <dt className="text-muted">{t("settings.logSize", undefined, locale)}</dt>
@@ -375,18 +417,55 @@ function SettingsValue({
   return (
     <dd className="min-w-0">
       <button
+        aria-label={t("settings.open", undefined, locale)}
         className="inline-flex max-w-full items-center gap-2 rounded-md text-left font-ui-600 text-ink underline decoration-line underline-offset-4 transition-colors hover:text-[color-mix(in_oklch,var(--app-ink)_82%,var(--app-focus))] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         onClick={() => void openSettingsLink(openableValue).catch(() => undefined)}
         title={openableValue}
         type="button"
       >
         <span className="min-w-0 truncate">{children}</span>
-        <span className="shrink-0 text-ui-xs font-ui-700 text-muted">
-          {t("settings.open", undefined, locale)}
-        </span>
+        <ExternalLink aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted" strokeWidth={1.8} />
       </button>
     </dd>
   );
+}
+
+function LogFileValue({
+  actionLabel,
+  onReveal,
+  path,
+  value,
+}: {
+  actionLabel: string;
+  onReveal: () => void;
+  path?: string | null;
+  value: ReactNode;
+}) {
+  if (!path) {
+    return <dd className="min-w-0 font-ui-600 wrap-anywhere">{value}</dd>;
+  }
+
+  return (
+    <dd className="flex min-w-0 items-center justify-between gap-3">
+      <span className="min-w-0 truncate font-ui-650" title={path}>
+        {value}
+      </span>
+      <button
+        aria-label={actionLabel}
+        className={iconButtonClass}
+        onClick={onReveal}
+        title={actionLabel}
+        type="button"
+      >
+        <FolderOpen aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
+      </button>
+    </dd>
+  );
+}
+
+function fileNameFromPath(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : path;
 }
 
 function ReleaseNotesSection({

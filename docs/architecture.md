@@ -56,9 +56,10 @@ PTP or ImageCaptureCore image objects map into `CameraPhoto` as follows:
 2. Use ImageCaptureCore to enumerate supported image objects, return camera
    metadata, and cache thumbnails and previews locally for the frontend.
 3. Keep the Nikon SDK adapter under `src-tauri/src/nikon_sdk/` disabled until
-   its Z6III rating API is available and verified.
-4. Keep `set_photo_rating` on a clear unsupported path until the Nikon SDK
-   exposes and verifies a camera-visible Z6III 0-5 star rating API.
+   a vendor-specific API is needed and verified.
+4. Route `set_photo_rating` through the macOS helper and ImageCaptureCore PTP
+   pass-through. The helper sends MTP `SetObjectPropValue` for object property
+   `Rating` to the selected camera object.
 5. Preserve the TypeScript `CameraPhoto` contract so UI code does not change.
 6. Track the gphoto2/PTP backend as an opt-in provider inside the same Tauri app,
    not as a separate user-facing application. The backend must own one
@@ -68,17 +69,18 @@ PTP or ImageCaptureCore image objects map into `CameraPhoto` as follows:
 
 ## Rating Write-Back State
 
-Official camera-visible rating write-back is not enabled yet. The SDK directory
-is present as `src-tauri/vendor/NikonSDK/`, but no official SDK headers or
-libraries are installed, so `rating_write_back_available()` returns `false`.
-When a user applies a rating, the frontend performs an optimistic update and the
-Tauri command returns the unsupported SDK error, causing the UI to roll back to
-the previous rating instead of claiming the value was saved to the camera.
+Camera-visible rating write-back is implemented through ImageCaptureCore PTP
+pass-through rather than the Nikon SDK. The frontend sends `cameraId`,
+`photoId`, and `rating`; Rust forwards the command to the long-lived macOS
+helper; the helper locates the `ICCameraFile` and sends MTP
+`SetObjectPropValue` for the `Rating` object property. If the camera rejects the
+PTP command, the frontend rolls back the optimistic rating and shows the camera
+error instead of treating the value as locally saved.
 
-No Nikon Z6III USB device or Nikon SDK files are available in this local
-environment. Discovery, camera-card enumeration, thumbnail/preview caching,
-and any future SDK write-back must therefore be verified on hardware before a
-release can claim real-device confirmation.
+No Nikon Z6III USB device is available in this local environment. Discovery,
+camera-card enumeration, thumbnail/preview caching, and PTP rating write-back
+must therefore be verified on hardware before a release can claim real-device
+confirmation.
 
 ## UX Direction
 

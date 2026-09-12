@@ -3,6 +3,7 @@ import {
   cachePhotoPreview,
   cachePhotoPreviews,
   openImageCapture,
+  setPhotoRating,
   type PhotoBatchEvent,
   streamPhotos,
 } from "./cameraApi";
@@ -140,6 +141,30 @@ describe("camera api", () => {
       cameraId: "camera-1",
       photoIds: ["photo-1", "photo-2"],
       previewPhotoIds: ["photo-1"],
+    });
+  });
+
+  it("sends the camera id when setting a photo rating", async () => {
+    invokeMock.mockResolvedValue({
+      cameraId: "camera-1",
+      capturedAt: "2026-08-31T10:15:00.000Z",
+      fileName: "DSC_1001.JPG",
+      fileType: "jpg",
+      height: 4024,
+      id: "camera-1:1001",
+      previewUrl: "",
+      rating: 5,
+      sizeMb: 18.4,
+      thumbnailUrl: "",
+      width: 6048,
+    });
+
+    await setPhotoRating("camera-1", "camera-1:1001", 5);
+
+    expect(invoke).toHaveBeenCalledWith("set_photo_rating", {
+      cameraId: "camera-1",
+      photoId: "camera-1:1001",
+      rating: 5,
     });
   });
 });

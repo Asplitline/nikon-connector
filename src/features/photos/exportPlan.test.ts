@@ -48,27 +48,22 @@ const photos: CameraPhoto[] = [
 ];
 
 describe("export plan", () => {
-  it("exports the current filtered result in visible order", () => {
-    const selection = createExportSelection({
-      mode: "visible",
+  it("exports only photos at the requested rating or unrated state", () => {
+    const unratedSelection = createExportSelection({
+      mode: "unrated",
       photos,
-      selectedPhotoId: "dsc-6328",
-      visiblePhotos: [photos[2], photos[0]],
+      selectedPhotoId: "dsc-6312",
+      visiblePhotos: photos,
     });
-
-    expect(selection.photoIds).toEqual(["dsc-6370", "dsc-6312"]);
-    expect(selection.count).toBe(2);
-  });
-
-  it("exports only photos at or above the requested rating threshold", () => {
     const selection = createExportSelection({
-      mode: "rating_5",
+      mode: "rating_4",
       photos,
       selectedPhotoId: "dsc-6312",
       visiblePhotos: photos,
     });
 
-    expect(selection.photoIds).toEqual(["dsc-6370"]);
+    expect(unratedSelection.photoIds).toEqual(["dsc-6328"]);
+    expect(selection.photoIds).toEqual(["dsc-6312"]);
   });
 
   it("exports the current photo for one-off use", () => {

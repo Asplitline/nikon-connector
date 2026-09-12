@@ -21,7 +21,6 @@ import { createPhotoStream, mergePhotoBatch } from "../photos/photoStream";
 import {
   applyLocalPickStatuses,
   applyLocalRatings,
-  isLocalOnlyRatingError,
   readLocalPickStatuses,
   readLocalRatings,
   writeLocalPickStatus,
@@ -327,16 +326,9 @@ export function useCameraSession(locale: Locale): CameraSession {
       writeLocalRating(window.localStorage, photo.cameraId, photo.id, rating);
 
       try {
-        await setPhotoRating(photo.id, rating);
+        await setPhotoRating(photo.cameraId, photo.id, rating);
         setStatus(tr("status.ratingSaved", { rating, fileName: photo.fileName }));
       } catch (error) {
-        if (isLocalOnlyRatingError(error)) {
-          writeAppLog("warn", "frontend.rating", `rating saved locally for ${photo.id}`);
-          setStatus(tr("status.ratingLocalSaved", { rating, fileName: photo.fileName }));
-          setRatingError(tr("status.ratingLocalOnly"));
-          return;
-        }
-
         setCatalog((current) => updatePhotoRating(current, photo.id, photo.rating));
         writeLocalRating(window.localStorage, photo.cameraId, photo.id, photo.rating);
         const message =

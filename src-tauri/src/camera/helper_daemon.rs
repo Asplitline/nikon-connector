@@ -40,9 +40,13 @@ pub struct HelperRequest<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub destination_dir: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub photo_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub photo_ids: Option<&'a [String]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_photo_ids: Option<&'a [String]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rating: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<f64>,
 }
@@ -55,8 +59,10 @@ impl<'a> HelperRequest<'a> {
             camera_id: None,
             cache_dir: None,
             destination_dir: None,
+            photo_id: None,
             photo_ids: None,
             preview_photo_ids: None,
+            rating: None,
             timeout: None,
         }
     }

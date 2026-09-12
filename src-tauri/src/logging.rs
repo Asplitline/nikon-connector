@@ -104,6 +104,40 @@ pub fn export_log_bundle(log_dir: &Path) -> Result<PathBuf, String> {
     Ok(export_path)
 }
 
+pub fn clear_log_files(log_dir: &Path) -> Result<(), String> {
+    fs::create_dir_all(log_dir)
+        .map_err(|error| format!("Could not create the app log directory: {error}"))?;
+
+    for path in [
+        log_dir.join(LOG_FILE_NAME),
+        log_dir.join(format!("{LOG_FILE_NAME}.1")),
+        log_dir.join(EXPORT_FILE_NAME),
+    ] {
+        match fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Could not remove the app log file {}: {error}",
+                    path.to_string_lossy()
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn reveal_target_for_path(path: &Path) -> PathBuf {
+    if path.exists() {
+        return path.to_path_buf();
+    }
+
+    path.parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| path.to_path_buf())
+}
+
 pub fn sanitize_log_message(message: &str) -> String {
     let without_home = redact_home_paths(message);
     redact_query_value(&without_home, "token")

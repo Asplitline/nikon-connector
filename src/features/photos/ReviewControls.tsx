@@ -1,28 +1,23 @@
 import type { ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import { defaultLocale, type Locale, t } from "../../i18n";
-import type { PhotoCatalogFilter, PhotoCatalogSort } from "./catalog";
+import type { PhotoCatalogSort } from "./catalog";
 import { fieldInputClass, fieldLabelClass } from "../app/formStyles";
 import {
-  catalogFilterOptions,
   catalogSortOptions,
-  formatCatalogFilter,
   formatCatalogSort,
 } from "./labels";
 
 export function ReviewControls({
   disabled = false,
-  filter,
   locale = defaultLocale,
-  onFilterChange,
   onSortChange,
   sort,
   variant = "panel",
   visibleCount,
 }: {
   disabled?: boolean;
-  filter: PhotoCatalogFilter;
   locale?: Locale;
-  onFilterChange: (filter: PhotoCatalogFilter) => void;
   onSortChange: (sort: PhotoCatalogSort) => void;
   sort: PhotoCatalogSort;
   variant?: "panel" | "header";
@@ -45,20 +40,6 @@ export function ReviewControls({
         </div>
 
         <div className={controlsClass}>
-          <ToolbarSelect
-            ariaLabel={t("review.filter", undefined, locale)}
-            disabled={disabled}
-            onChange={(value) => onFilterChange(value as PhotoCatalogFilter)}
-            value={filter}
-            widthClass="w-[96px]"
-          >
-            {catalogFilterOptions.map((option) => (
-              <option key={option} value={option}>
-                {formatCatalogFilter(option, locale)}
-              </option>
-            ))}
-          </ToolbarSelect>
-
           <ToolbarSelect
             ariaLabel={t("review.sort", undefined, locale)}
             disabled={disabled}
@@ -87,22 +68,6 @@ export function ReviewControls({
       </div>
 
       <div className={controlsClass}>
-        <label className={fieldLabelClass}>
-          <span>{t("review.filter", undefined, locale)}</span>
-          <select
-            className={fieldInputClass}
-            disabled={disabled}
-            onChange={(event) => onFilterChange(event.target.value as PhotoCatalogFilter)}
-            value={filter}
-          >
-            {catalogFilterOptions.map((option) => (
-              <option key={option} value={option}>
-                {formatCatalogFilter(option, locale)}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <label className={fieldLabelClass}>
           <span>{t("review.sort", undefined, locale)}</span>
           <select
@@ -150,18 +115,11 @@ function ToolbarSelect({
       >
         {children}
       </select>
-      <svg
+      <ChevronDown
         aria-hidden="true"
         className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-        viewBox="0 0 16 16"
-      >
-        <path d="m4.5 6.5 3.5 3 3.5-3" />
-      </svg>
+        strokeWidth={1.8}
+      />
     </label>
   );
 }

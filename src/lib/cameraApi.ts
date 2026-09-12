@@ -138,11 +138,14 @@ export async function cachePhotoPreviews(
 }
 
 export async function setPhotoRating(
+  cameraId: string,
   photoId: string,
   rating: Rating,
 ): Promise<CameraPhoto> {
   if (!canUseTauri()) {
-    const photo = mockPhotos.find((item) => item.id === photoId);
+    const photo = mockPhotos.find(
+      (item) => item.cameraId === cameraId && item.id === photoId,
+    );
     if (!photo) {
       throw new Error("Photo not found");
     }
@@ -150,7 +153,7 @@ export async function setPhotoRating(
     return photo;
   }
 
-  return invoke<CameraPhoto>("set_photo_rating", { photoId, rating });
+  return invoke<CameraPhoto>("set_photo_rating", { cameraId, photoId, rating });
 }
 
 export async function exportPhotos(

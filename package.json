@@ -9,7 +9,7 @@
     "build": "tsc && vite build",
     "check": "bun run lint && bun run build",
     "dev:app": "bun run helper:build && bun run tauri dev",
-    "helper:build": "mkdir -p native/macos-camera-helper/.build/debug /private/tmp/nikon-connector-clang-cache && xcrun swiftc -target arm64-apple-macosx14.0 -module-cache-path /private/tmp/nikon-connector-clang-cache -framework Foundation -framework ImageCaptureCore -framework ImageIO native/macos-camera-helper/Sources/NikonCameraHelper/main.swift native/macos-camera-helper/Sources/NikonCameraHelper/Models.swift native/macos-camera-helper/Sources/NikonCameraHelper/Command.swift native/macos-camera-helper/Sources/NikonCameraHelper/Protocol.swift native/macos-camera-helper/Sources/NikonCameraHelper/Daemon.swift native/macos-camera-helper/Sources/NikonCameraHelper/PreviewCachePaths.swift native/macos-camera-helper/Sources/NikonCameraHelper/DisplayPreviewRenderer.swift native/macos-camera-helper/Sources/NikonCameraHelper/DisplayPreviewCache.swift native/macos-camera-helper/Sources/NikonCameraHelper/ShootingMetadata.swift native/macos-camera-helper/Sources/NikonCameraHelper/ImageCaptureCameraStore.swift -o native/macos-camera-helper/.build/debug/nikon-camera-helper",
+    "helper:build": "mkdir -p native/macos-camera-helper/.build/debug /private/tmp/nikon-connector-clang-cache && xcrun swiftc -target arm64-apple-macosx14.0 -module-cache-path /private/tmp/nikon-connector-clang-cache -framework Foundation -framework ImageCaptureCore -framework ImageIO native/macos-camera-helper/Sources/NikonCameraHelper/main.swift native/macos-camera-helper/Sources/NikonCameraHelper/Models.swift native/macos-camera-helper/Sources/NikonCameraHelper/Command.swift native/macos-camera-helper/Sources/NikonCameraHelper/Protocol.swift native/macos-camera-helper/Sources/NikonCameraHelper/Daemon.swift native/macos-camera-helper/Sources/NikonCameraHelper/InitialCatalogLoadPolicy.swift native/macos-camera-helper/Sources/NikonCameraHelper/PreviewCachePaths.swift native/macos-camera-helper/Sources/NikonCameraHelper/DisplayPreviewRenderer.swift native/macos-camera-helper/Sources/NikonCameraHelper/DisplayPreviewCache.swift native/macos-camera-helper/Sources/NikonCameraHelper/ShootingMetadata.swift native/macos-camera-helper/Sources/NikonCameraHelper/PTPRatingCommand.swift native/macos-camera-helper/Sources/NikonCameraHelper/ImageCaptureCameraStore.swift -o native/macos-camera-helper/.build/debug/nikon-camera-helper",
     "lint": "eslint .",
     "preview": "vite preview",
     "release:build": "node scripts/release.mjs build",
@@ -29,6 +29,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.11.0",
+    "lucide-react": "^1.45.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

@@ -1,10 +1,18 @@
+import {
+  AlertTriangle,
+  Circle,
+  CircleCheck,
+  CircleMinus,
+  LoaderCircle,
+  X,
+} from "lucide-react";
 import { defaultLocale, type Locale, t } from "../../i18n";
 import type {
   ConnectionDiagnostics,
   ConnectionDiagnosticStep,
   DiagnosticActionKind,
 } from "./connectionDiagnostics";
-import { diagnosticSymbol, formatDiagnosticState } from "./labels";
+import { formatDiagnosticState } from "./labels";
 import { buttonClass, iconButtonClass } from "../app/buttonStyles";
 import {
   diagnosticActionClass,
@@ -53,7 +61,7 @@ export function ConnectionDiagnosticDialog({
             onClick={onClose}
             type="button"
           >
-            ×
+            <X aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
           </button>
         </header>
 
@@ -109,7 +117,7 @@ export function DiagnosticStepRow({
   return (
     <li className={diagnosticStepClass(step.state, compact)}>
       <span aria-hidden="true" className={diagnosticMarkerClass(step.state)}>
-        {diagnosticSymbol(step.state)}
+        <DiagnosticStateIcon state={step.state} />
       </span>
       <span className="min-w-0">
         <span className="flex min-w-0 items-baseline justify-between gap-2">
@@ -131,4 +139,26 @@ export function DiagnosticStepRow({
       </span>
     </li>
   );
+}
+
+function DiagnosticStateIcon({ state }: { state: ConnectionDiagnosticStep["state"] }) {
+  const className = state === "checking" ? "h-3.5 w-3.5 motion-safe:animate-spin" : "h-3.5 w-3.5";
+
+  if (state === "attention") {
+    return <AlertTriangle className={className} strokeWidth={2} />;
+  }
+
+  if (state === "checking") {
+    return <LoaderCircle className={className} strokeWidth={2} />;
+  }
+
+  if (state === "complete") {
+    return <CircleCheck className={className} strokeWidth={2} />;
+  }
+
+  if (state === "unavailable") {
+    return <CircleMinus className={className} strokeWidth={2} />;
+  }
+
+  return <Circle className={className} strokeWidth={2} />;
 }

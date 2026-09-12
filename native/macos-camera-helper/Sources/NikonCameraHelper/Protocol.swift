@@ -9,8 +9,10 @@ struct HelperRequest: Decodable {
     let cameraId: String?
     let cacheDir: String?
     let destinationDir: String?
+    let photoId: String?
     let photoIds: [String]?
     let previewPhotoIds: [String]?
+    let rating: Int?
     let timeout: Double?
 }
 
@@ -71,7 +73,14 @@ extension Command {
                 photoIds: request.photoIds ?? []
             )
         case "set-rating":
-            return .setRating(photoId: "", rating: 0)
+            guard let rating = request.rating, (0...5).contains(rating) else {
+                throw HelperError.message("Rating must be between 0 and 5.")
+            }
+            return .setRating(
+                cameraId: try require(request.cameraId, "cameraId"),
+                photoId: try require(request.photoId, "photoId"),
+                rating: rating
+            )
         default:
             throw HelperError.message("Unknown command: \(request.cmd).")
         }

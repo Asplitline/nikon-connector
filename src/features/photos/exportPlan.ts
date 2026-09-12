@@ -1,10 +1,12 @@
 import type { CameraPhoto } from "./types";
 
 export type ExportMode =
-  | "visible"
   | "picked"
-  | "rating_3_plus"
-  | "rating_4_plus"
+  | "unrated"
+  | "rating_1"
+  | "rating_2"
+  | "rating_3"
+  | "rating_4"
   | "rating_5"
   | "current";
 
@@ -47,12 +49,24 @@ function selectPhotosForExport(input: ExportSelectionInput) {
     return input.photos.filter((photo) => photo.id === input.selectedPhotoId);
   }
 
-  if (input.mode === "rating_3_plus") {
-    return input.photos.filter((photo) => photo.rating >= 3);
+  if (input.mode === "unrated") {
+    return input.photos.filter((photo) => photo.rating === 0);
   }
 
-  if (input.mode === "rating_4_plus") {
-    return input.photos.filter((photo) => photo.rating >= 4);
+  if (input.mode === "rating_1") {
+    return input.photos.filter((photo) => photo.rating === 1);
+  }
+
+  if (input.mode === "rating_2") {
+    return input.photos.filter((photo) => photo.rating === 2);
+  }
+
+  if (input.mode === "rating_3") {
+    return input.photos.filter((photo) => photo.rating === 3);
+  }
+
+  if (input.mode === "rating_4") {
+    return input.photos.filter((photo) => photo.rating === 4);
   }
 
   if (input.mode === "rating_5") {
@@ -63,5 +77,5 @@ function selectPhotosForExport(input: ExportSelectionInput) {
     return input.photos.filter((photo) => photo.pickStatus === "picked");
   }
 
-  return input.visiblePhotos;
+  return [];
 }

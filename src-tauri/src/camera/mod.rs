@@ -110,6 +110,30 @@ pub fn export_photos(
     }
 }
 
+pub fn set_photo_rating(
+    camera_id: &str,
+    photo_id: &str,
+    rating: u8,
+) -> Result<CameraPhoto, String> {
+    if rating > 5 {
+        return Err("Rating must be between 0 and 5.".into());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if camera_id != "z6iii" {
+            return helper_bridge::set_photo_rating(camera_id, photo_id, rating);
+        }
+    }
+
+    let mut photo = find_photo(photo_id).ok_or_else(|| "Photo not found.".to_string())?;
+    if photo.camera_id != camera_id {
+        return Err("Photo not found.".into());
+    }
+    photo.rating = rating;
+    Ok(photo)
+}
+
 fn photos_from_helper_result(
     camera_id: &str,
     helper_result: Result<Vec<CameraPhoto>, String>,

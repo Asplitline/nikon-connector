@@ -47,9 +47,18 @@ do {
         writeJSON(store.cachePhotoPreviews(cameraId: cameraId, photoIds: photoIds, previewPhotoIds: previewPhotoIds, cacheDir: cacheDir, timeout: 8.0))
     case let .exportPhotos(cameraId, destinationDir, photoIds):
         writeJSON(store.exportPhotos(cameraId: cameraId, destinationDir: destinationDir, photoIds: photoIds, timeout: 30.0))
-    case .setRating:
-        writeJSON(CommandError(error: "Nikon SDK unavailable."))
-        exit(EXIT_FAILURE)
+    case let .setRating(cameraId, photoId, rating):
+        do {
+            writeJSON(try store.setRating(
+                cameraId: cameraId,
+                photoId: photoId,
+                rating: rating,
+                timeout: 8.0
+            ))
+        } catch HelperError.message(let message) {
+            writeJSON(CommandError(error: message))
+            exit(EXIT_FAILURE)
+        }
     }
 } catch HelperError.message(let message) {
     writeJSON(CommandError(error: message))

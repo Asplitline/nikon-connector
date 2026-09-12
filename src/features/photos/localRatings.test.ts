@@ -117,12 +117,9 @@ describe("local ratings", () => {
     expect(readLocalPickStatuses(storage, "camera-1")).toEqual({});
   });
 
-  it("treats unsupported SDK write-back errors as local-only rating results", () => {
-    expect(
-      isLocalOnlyRatingError(
-        new Error("Nikon SDK rating write-back is not connected yet."),
-      ),
-    ).toBe(true);
+  it("does not treat camera write-back failures as local-only successes", () => {
+    expect(isLocalOnlyRatingError("Nikon SDK unavailable.")).toBe(false);
+    expect(isLocalOnlyRatingError("相机可能不支持此操作。")).toBe(false);
     expect(isLocalOnlyRatingError(new Error("Camera disconnected."))).toBe(false);
   });
 });

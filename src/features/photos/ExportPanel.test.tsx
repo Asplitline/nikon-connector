@@ -11,7 +11,7 @@ describe("export panel UI", () => {
         exportCount={8}
         exportSizeMb={140.25}
         locale="zh-CN"
-        mode="visible"
+        mode="unrated"
         onDestinationChange={() => undefined}
         onExport={() => undefined}
         onModeChange={() => undefined}
@@ -20,9 +20,10 @@ describe("export panel UI", () => {
     );
 
     expect(markup).toContain("精选导出");
-    expect(markup).toContain("当前筛选结果");
-    expect(markup).toContain("3 星以上");
+    expect(markup).toContain("未评级");
+    expect(markup).toContain("4 星");
     expect(markup).toContain("8 张");
     expect(markup).toContain("140.3 MB");
+    expect(markup).not.toContain("当前筛选结果");
   });
 });

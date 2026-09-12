@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { type Locale, t } from "../../i18n";
 import {
+  clearLogs,
   checkForUpdate,
   exportLogs,
   getAppInfo,
   getLogInfo,
   installPendingUpdate,
+  revealPath,
   writeAppLog,
   type AppInfo,
   type LogInfo,
@@ -18,10 +19,13 @@ export interface AppUpdates {
   appInfo: AppInfo | null;
   autoUpdateEnabled: boolean;
   checkNow: () => Promise<void>;
+  clearLogBundle: () => Promise<void>;
   exportLogBundle: () => Promise<void>;
   installUpdate: () => Promise<void>;
   logInfo: LogInfo | null;
   logStatus: LogStatus;
+  revealExportLog: () => Promise<void>;
+  revealLog: () => Promise<void>;
   setAutoUpdateEnabled: (enabled: boolean) => void;
   updateStatus: UpdateStatus;
 }
@@ -139,7 +143,7 @@ export function useAppUpdates(
       setLogInfo(nextInfo);
       setLogStatus("idle");
       onStatusMessage(tr("status.logsExported", { path }));
-      await openPath(path);
+      await revealPath(path);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : tr("status.logsExportFailed");
@@ -149,14 +153,60 @@ export function useAppUpdates(
     }
   }, [onStatusMessage, tr]);
 
+  const clearLogBundle = useCallback(async () => {
+    setLogStatus("clearing");
+
+    try {
+      const nextInfo = await clearLogs();
+      setLogInfo(nextInfo);
+      setLogStatus("idle");
+      onStatusMessage(tr("status.logsCleared"));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : tr("status.logsClearFailed");
+      setLogStatus("error");
+      onStatusMessage(message);
+      writeAppLog("error", "frontend.logs", message);
+    }
+  }, [onStatusMessage, tr]);
+
+  const revealLog = useCallback(async () => {
+    if (!logInfo) return;
+
+    try {
+      await revealPath(logInfo.logPath);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : tr("status.couldNotRevealLog");
+      onStatusMessage(message);
+      writeAppLog("error", "frontend.logs", message);
+    }
+  }, [logInfo, onStatusMessage, tr]);
+
+  const revealExportLog = useCallback(async () => {
+    if (!logInfo) return;
+
+    try {
+      await revealPath(logInfo.exportPath);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : tr("status.couldNotRevealLog");
+      onStatusMessage(message);
+      writeAppLog("error", "frontend.logs", message);
+    }
+  }, [logInfo, onStatusMessage, tr]);
+
   return {
     appInfo,
     autoUpdateEnabled,
     checkNow,
+    clearLogBundle,
     exportLogBundle,
     installUpdate,
     logInfo,
     logStatus,
+    revealExportLog,
+    revealLog,
     setAutoUpdateEnabled,
     updateStatus,
   };

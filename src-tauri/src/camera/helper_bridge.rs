@@ -73,6 +73,24 @@ pub fn export_photos(
     })
 }
 
+pub fn set_photo_rating(
+    camera_id: &str,
+    photo_id: &str,
+    rating: u8,
+) -> Result<CameraPhoto, String> {
+    if rating > 5 {
+        return Err("Rating must be between 0 and 5.".into());
+    }
+
+    send("set-rating", |id| {
+        let mut request = HelperRequest::new(id, "set-rating");
+        request.camera_id = Some(camera_id);
+        request.photo_id = Some(photo_id);
+        request.rating = Some(rating);
+        serialize(request)
+    })
+}
+
 fn cache_dir_str(cache_dir: &Path) -> Result<&str, String> {
     cache_dir
         .to_str()

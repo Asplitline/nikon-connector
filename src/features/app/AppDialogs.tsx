@@ -48,8 +48,11 @@ export function AppDialogs({
           logInfo={updates.logInfo}
           logStatus={updates.logStatus}
           onCheckForUpdate={() => void updates.checkNow()}
+          onClearLogs={() => void updates.clearLogBundle()}
           onClose={onCloseSettings}
           onExportLogs={() => void updates.exportLogBundle()}
+          onRevealExportLog={() => void updates.revealExportLog()}
+          onRevealLog={() => void updates.revealLog()}
           onInstallUpdate={() => void updates.installUpdate()}
           onLocaleChange={onLocaleChange}
           onThemeChange={onThemeChange}

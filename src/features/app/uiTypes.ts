@@ -1,12 +1,12 @@
 import type { AvailableUpdate } from "../../lib/appApi";
-import type { PhotoCatalogFilter, PhotoCatalogSort } from "../photos/catalog";
+import type { PhotoCatalogSort } from "../photos/catalog";
 import type { ExportMode, ExportSelection } from "../photos/exportPlan";
 
 export type ThemeMode = "light" | "dark";
 
 export type ExportStatus = "idle" | "exporting" | "complete" | "error";
 
-export type LogStatus = "idle" | "exporting" | "error";
+export type LogStatus = "idle" | "clearing" | "exporting" | "error";
 
 export type UpdateStatus =
   | { state: "idle"; message: string }
@@ -28,8 +28,6 @@ export interface ExportControls {
 }
 
 export interface CatalogControls {
-  filter: PhotoCatalogFilter;
-  onFilterChange: (filter: PhotoCatalogFilter) => void;
   onSortChange: (sort: PhotoCatalogSort) => void;
   sort: PhotoCatalogSort;
 }

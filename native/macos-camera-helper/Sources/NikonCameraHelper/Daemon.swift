@@ -129,12 +129,14 @@ final class Daemon {
                 )
                 writeResponse(HelperResponse(id: request.id, type: .result, payload: summary))
 
-            case .setRating:
-                writeResponse(HelperResponse(
-                    id: request.id,
-                    type: .error,
-                    payload: HelperErrorPayload(message: "Nikon SDK unavailable.")
-                ))
+            case let .setRating(cameraId, photoId, rating):
+                let photo = try store.setRating(
+                    cameraId: cameraId,
+                    photoId: photoId,
+                    rating: rating,
+                    timeout: timeout
+                )
+                writeResponse(HelperResponse(id: request.id, type: .result, payload: photo))
             }
         } catch HelperError.message(let message) {
             writeResponse(HelperResponse(

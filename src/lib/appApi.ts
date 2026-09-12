@@ -92,6 +92,26 @@ export async function exportLogs(): Promise<string> {
   return invoke<string>("export_logs");
 }
 
+export async function clearLogs(): Promise<LogInfo> {
+  if (!canUseTauri()) {
+    return {
+      exportPath: "Browser preview does not write desktop logs.",
+      logPath: "Browser preview does not write desktop logs.",
+      sizeBytes: 0,
+    };
+  }
+
+  return invoke<LogInfo>("clear_logs");
+}
+
+export async function revealPath(path: string): Promise<void> {
+  if (!canUseTauri()) {
+    throw new Error("Files can only be shown in the desktop app.");
+  }
+
+  await invoke("reveal_path", { path });
+}
+
 export function writeAppLog(
   level: LogLevel,
   target: string,
@@ -104,9 +124,9 @@ export function writeAppLog(
   void invoke("write_client_log", { level, message, target }).catch(() => undefined);
 }
 
-const browserChangelog = `# Changelog
+const browserChangelog = `# 发布日志
 
-## [Unreleased]
+## [未发布]
 
-- Desktop updates are available in the packaged Tauri app.
+- 桌面更新功能会在打包后的 Tauri 应用中可用。
 `;

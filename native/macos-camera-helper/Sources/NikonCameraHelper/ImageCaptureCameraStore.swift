@@ -8,6 +8,7 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
     private var contentCatalogFinished = false
     private var downloadFinished = false
     private var downloadError: Error?
+    private var ratingTransactionId: UInt32 = 1
 
     // 常驻模式下浏览器与相机会话跨请求复用：设备扫描（实测占满整个 timeout，
     // 3~8s）与「打开会话 + 等目录」只在首次请求时付一次。
@@ -76,15 +77,17 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
             files: files,
             timeout: min(2.0, max(0.5, timeout / 4.0))
         )
-        let cachedImages = cacheImages(
-            for: files,
-            from: camera,
-            cameraId: cameraId,
-            in: cacheURL,
-            previewPhotoIds: [],
-            previewFilesByPhotoId: [:],
-            timeout: timeout
-        )
+        let cachedImages = InitialCatalogLoadPolicy.shouldWarmCameraImages
+            ? cacheImages(
+                for: files,
+                from: camera,
+                cameraId: cameraId,
+                in: cacheURL,
+                previewPhotoIds: [],
+                previewFilesByPhotoId: [:],
+                timeout: timeout
+            )
+            : existingCachedImages(for: files, cameraId: cameraId, in: cacheURL)
         let photos = flatten(
             items: items,
             cameraId: cameraId,
@@ -237,6 +240,64 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         closeSessionIfNeeded(camera)
         log("export-photos finished copied=\(copied) skipped=\(skipped) failed=\(failed)")
         return ExportPhotosSummary(copied: copied, skipped: skipped, failed: failed)
+    }
+
+    func setRating(
+        cameraId: String,
+        photoId: String,
+        rating: Int,
+        timeout: TimeInterval
+    ) throws -> CameraPhoto {
+        guard (0...5).contains(rating) else {
+            throw HelperError.message("Rating must be between 0 and 5.")
+        }
+
+        log("set-rating started cameraId=\(cameraId) photoId=\(photoId) rating=\(rating) timeout=\(timeout)s")
+        startBrowser(timeout: timeout)
+        defer { stopBrowser() }
+
+        guard let camera = cameraDevices.first(where: { cameraIdentifier(for: $0) == cameraId }) else {
+            throw HelperError.message("Camera not found.")
+        }
+
+        openSessionIfNeeded(camera, timeout: timeout)
+        defer { closeSessionIfNeeded(camera) }
+
+        guard camera.capabilities.contains(ICDeviceCapability.cameraDeviceCanAcceptPTPCommands.rawValue) else {
+            throw HelperError.message("Camera does not accept PTP commands.")
+        }
+
+        let files = cameraFiles(in: readableItems(for: camera))
+        guard let file = files.first(where: { photoIdentifier(for: $0, cameraId: cameraId) == photoId }) else {
+            throw HelperError.message("Photo not found.")
+        }
+
+        guard file.ptpObjectHandle != 0 else {
+            throw HelperError.message("Photo cannot be rated because it has no PTP object handle.")
+        }
+
+        try sendRatingCommand(
+            camera: camera,
+            objectHandle: file.ptpObjectHandle,
+            rating: rating,
+            timeout: timeout
+        )
+
+        let cachedImages = existingCachedImages(
+            for: [file],
+            cameraId: cameraId,
+            in: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        )
+        guard var photo = flatten(
+            items: [file],
+            cameraId: cameraId,
+            cachedImages: cachedImages
+        ).first else {
+            throw HelperError.message("Photo not found.")
+        }
+        photo.rating = rating
+        log("set-rating finished cameraId=\(cameraId) photoId=\(photoId) rating=\(rating)")
+        return photo
     }
 
     func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
@@ -667,6 +728,38 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         return paths
     }
 
+    private func existingCachedImages(
+        for files: [ICCameraFile],
+        cameraId: String,
+        in cacheURL: URL
+    ) -> [ObjectIdentifier: CachedImagePaths] {
+        var paths: [ObjectIdentifier: CachedImagePaths] = [:]
+
+        for file in files {
+            guard let fileName = file.name else { continue }
+            let identifier = file.ptpObjectHandle == 0 ? fileName : String(file.ptpObjectHandle)
+            let cachePaths = PreviewCachePaths(
+                cameraId: cameraId,
+                fileIdentifier: identifier,
+                cacheDirectory: cacheURL
+            )
+            let thumbnailPath = cachePaths.existingThumbnailPath()
+            let previewPath = cachePaths.existingDisplayPreviewPath()
+
+            if thumbnailPath.isEmpty && previewPath.isEmpty {
+                continue
+            }
+
+            paths[ObjectIdentifier(file)] = CachedImagePaths(
+                thumbnailPath: thumbnailPath,
+                previewPath: previewPath
+            )
+        }
+
+        log("existing-cached-images finished files=\(files.count) cachedEntries=\(paths.count)")
+        return paths
+    }
+
     private func previewSourceFiles(
         for files: [ICCameraFile],
         from allFiles: [ICCameraFile],
@@ -754,6 +847,46 @@ final class ImageCaptureCameraStore: NSObject, ICDeviceBrowserDelegate, ICCamera
         }
 
         return downloadFinished && downloadError == nil
+    }
+
+    private func sendRatingCommand(
+        camera: ICCameraDevice,
+        objectHandle: UInt32,
+        rating: Int,
+        timeout: TimeInterval
+    ) throws {
+        let transactionId = nextRatingTransactionId()
+        let command = PTPRatingCommand.setRatingCommand(
+            objectHandle: objectHandle,
+            transactionId: transactionId
+        )
+        let payload = PTPRatingCommand.ratingPayload(rating)
+        let group = DispatchGroup()
+        var response = Data()
+        var commandError: Error?
+
+        group.enter()
+        camera.requestSendPTPCommand(command, outData: payload) { responseData, ptpResponseData, error in
+            commandError = error
+            response = responseData.isEmpty ? ptpResponseData : responseData
+            group.leave()
+        }
+
+        if group.wait(timeout: .now() + timeout) == .timedOut {
+            throw HelperError.message("Timed out writing rating to camera.")
+        }
+
+        if let commandError {
+            throw HelperError.message("Failed to write rating to camera: \(commandError.localizedDescription)")
+        }
+
+        try PTPRatingCommand.validateResponse(response)
+    }
+
+    private func nextRatingTransactionId() -> UInt32 {
+        let id = ratingTransactionId
+        ratingTransactionId = ratingTransactionId == UInt32.max ? 1 : ratingTransactionId + 1
+        return id
     }
 
     private func log(_ message: String) {

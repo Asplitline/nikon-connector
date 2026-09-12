@@ -52,7 +52,7 @@ export function filmstripItemClass(isSelected: boolean): string {
 export function reviewImageClass(isFitMode: boolean): string {
   return [
     "block h-auto min-h-0 min-w-0 touch-none select-none rounded-md object-contain max-sm:max-h-[40vh]",
-    "shadow-[0_24px_88px_color-mix(in_oklch,var(--app-ink)_28%,transparent),0_2px_10px_color-mix(in_oklch,var(--app-ink)_18%,transparent)]",
+    "shadow-[0_14px_42px_color-mix(in_oklch,var(--app-ink)_14%,transparent),0_1px_4px_color-mix(in_oklch,var(--app-ink)_12%,transparent)]",
     isFitMode
       ? "max-h-full max-w-full"
       : "max-h-none max-w-none origin-center",

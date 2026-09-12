@@ -125,6 +125,80 @@ describe("filmstrip virtualization", () => {
 });
 
 describe("photo preview image", () => {
+  it("shows a compact right-side info strip when enabled", () => {
+    const markup = renderToStaticMarkup(
+      <div className="group">
+        <PhotoStage
+          infoVisible
+          locale="zh-CN"
+          onInfoToggle={() => undefined}
+          onMark={() => undefined}
+          onNext={() => undefined}
+          onPrevious={() => undefined}
+          onRate={() => undefined}
+          onZoomAction={() => undefined}
+          photo={{
+            ...photo("a", "https://example.test/a-thumb.jpg", "https://example.test/a-preview.jpg"),
+            aperture: "f/8",
+            exposureCompensation: "0 EV",
+            focalLength: "40 mm",
+            iso: 100,
+            shutterSpeed: "1/500",
+            sizeMb: 16.2,
+          }}
+          zoom={{ mode: "fit", scale: 1 }}
+          zoomLabel="适应"
+        />
+      </div>,
+    );
+
+    expect(markup).toContain("拍摄信息");
+    expect(markup).not.toContain("lucide-info");
+    expect(markup).toContain("lucide-aperture");
+    expect(markup).toContain("JPG");
+    expect(markup).toContain("6048 x 4024");
+    expect(markup).toContain("16.2 MB");
+    expect(markup).toContain("光圈");
+    expect(markup).toContain("f/8");
+    expect(markup).toContain("焦段");
+    expect(markup).toContain("40 mm");
+    expect(markup).toContain("ISO");
+    expect(markup).toContain("100");
+    expect(markup).toContain("快门");
+    expect(markup).toContain("1/500");
+    expect(markup).toContain("曝光补偿");
+    expect(markup).toContain("0 EV");
+    expect(markup).not.toContain("f/8 · 40 mm · ISO 100 · 1/500 · 0 EV");
+    expect(markup).toContain('aria-label="隐藏拍摄信息"');
+  });
+
+  it("uses the workspace toolbar as the only way to reveal hidden quick info", () => {
+    const markup = renderToStaticMarkup(
+      <div className="group">
+        <PhotoStage
+          infoVisible={false}
+          locale="zh-CN"
+          onInfoToggle={() => undefined}
+          onMark={() => undefined}
+          onNext={() => undefined}
+          onPrevious={() => undefined}
+          onRate={() => undefined}
+          onZoomAction={() => undefined}
+          photo={{
+            ...photo("a", "https://example.test/a-thumb.jpg", "https://example.test/a-preview.jpg"),
+            sizeMb: 16.2,
+          }}
+          zoom={{ mode: "fit", scale: 1 }}
+          zoomLabel="适应"
+        />
+      </div>,
+    );
+
+    expect(markup).not.toContain('aria-label="显示拍摄信息"');
+    expect(markup).not.toContain("6048 x 4024");
+    expect(markup).not.toContain("16.2 MB");
+  });
+
   it("does not animate continuous gesture zoom changes", () => {
     expect(reviewImageClass(false)).not.toContain("transition-transform");
   });
@@ -147,6 +221,33 @@ describe("photo preview image", () => {
     );
 
     expect(markup).toContain("正在加载高清预览");
+  });
+
+  it("keeps secondary stage controls inside the bottom action bar", () => {
+    const markup = renderToStaticMarkup(
+      <div className="group">
+        <PhotoStage
+          bottomAccessory={
+            <button aria-label="展开缩略图" type="button">
+              Toggle
+            </button>
+          }
+          locale="zh-CN"
+          onMark={() => undefined}
+          onNext={() => undefined}
+          onPrevious={() => undefined}
+          onRate={() => undefined}
+          onZoomAction={() => undefined}
+          photo={photo("a", "https://example.test/a-thumb.jpg")}
+          zoom={{ mode: "fit", scale: 1 }}
+          zoomLabel="适应"
+        />
+      </div>,
+    );
+
+    expect(markup).toContain('aria-label="展开缩略图"');
+    expect(markup).toContain("max-w-[calc(100%-24px)]");
+    expect(markup).toContain(">Toggle</button>");
   });
 
   it("keeps the visible thumbnail until the new preview candidate has loaded", () => {

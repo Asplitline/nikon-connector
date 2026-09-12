@@ -40,8 +40,11 @@ describe("settings diagnostics UI", () => {
         logStatus="idle"
         locale="zh-CN"
         onCheckForUpdate={() => undefined}
+        onClearLogs={() => undefined}
         onClose={() => undefined}
         onExportLogs={() => undefined}
+        onRevealExportLog={() => undefined}
+        onRevealLog={() => undefined}
         onInstallUpdate={() => undefined}
         onLocaleChange={() => undefined}
         onThemeChange={() => undefined}
@@ -55,6 +58,10 @@ describe("settings diagnostics UI", () => {
     expect(markup).toContain("nikon-connector.log");
     expect(markup).toContain("2.0 KB");
     expect(markup).toContain("导出日志");
+    expect(markup).toContain("清空日志");
+    expect(markup).toContain("在 Finder 中显示日志文件");
+    expect(markup).not.toContain(">/tmp/nikon-connector.log<");
+    expect(markup).not.toContain(">/tmp/nikon-connector-diagnostic-log.txt<");
   });
 
   it("groups settings behind a left tab rail", () => {
@@ -71,8 +78,11 @@ describe("settings diagnostics UI", () => {
         logStatus="idle"
         locale="zh-CN"
         onCheckForUpdate={() => undefined}
+        onClearLogs={() => undefined}
         onClose={() => undefined}
         onExportLogs={() => undefined}
+        onRevealExportLog={() => undefined}
+        onRevealLog={() => undefined}
         onInstallUpdate={() => undefined}
         onLocaleChange={() => undefined}
         onThemeChange={() => undefined}
@@ -104,8 +114,11 @@ describe("settings diagnostics UI", () => {
         logStatus="idle"
         locale="zh-CN"
         onCheckForUpdate={() => undefined}
+        onClearLogs={() => undefined}
         onClose={() => undefined}
         onExportLogs={() => undefined}
+        onRevealExportLog={() => undefined}
+        onRevealLog={() => undefined}
         onInstallUpdate={() => undefined}
         onLocaleChange={() => undefined}
         onThemeChange={() => undefined}
@@ -137,8 +150,11 @@ describe("settings diagnostics UI", () => {
         logStatus="idle"
         locale="zh-CN"
         onCheckForUpdate={() => undefined}
+        onClearLogs={() => undefined}
         onClose={() => undefined}
         onExportLogs={() => undefined}
+        onRevealExportLog={() => undefined}
+        onRevealLog={() => undefined}
         onInstallUpdate={() => undefined}
         onLocaleChange={() => undefined}
         onThemeChange={() => undefined}
@@ -149,9 +165,9 @@ describe("settings diagnostics UI", () => {
     );
 
     expect(markup).toContain('title="https://example.test/latest.json"');
-    expect(markup).toContain('title="/tmp/nikon-connector.log"');
-    expect(markup).toContain('title="/tmp/nikon-connector-diagnostic-log.txt"');
-    expect(markup).toContain("打开");
+    expect(markup).toContain('aria-label="在 Finder 中显示日志文件"');
+    expect(markup).toContain('aria-label="在 Finder 中显示导出日志"');
+    expect(markup).not.toContain('<span class="shrink-0 text-ui-xs font-ui-700 text-muted">打开</span>');
   });
 
   it("keeps loading values as plain text", () => {
@@ -163,8 +179,11 @@ describe("settings diagnostics UI", () => {
         logStatus="idle"
         locale="zh-CN"
         onCheckForUpdate={() => undefined}
+        onClearLogs={() => undefined}
         onClose={() => undefined}
         onExportLogs={() => undefined}
+        onRevealExportLog={() => undefined}
+        onRevealLog={() => undefined}
         onInstallUpdate={() => undefined}
         onLocaleChange={() => undefined}
         onThemeChange={() => undefined}
@@ -199,7 +218,27 @@ describe("settings diagnostics UI", () => {
       {
         body: "",
         items: ["Desktop updates"],
-        title: "[Unreleased]",
+        title: "未发布",
+      },
+    ]);
+  });
+
+  it("localizes common changelog section headings", () => {
+    expect(parseChangelog("## [Unreleased]\n\n### Added\n- Release notes\n\n### Fixed\n- Update check")).toEqual([
+      {
+        body: "",
+        items: [],
+        title: "未发布",
+      },
+      {
+        body: "",
+        items: ["Release notes"],
+        title: "新增",
+      },
+      {
+        body: "",
+        items: ["Update check"],
+        title: "修复",
       },
     ]);
   });

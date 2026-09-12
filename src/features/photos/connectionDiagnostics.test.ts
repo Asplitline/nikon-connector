@@ -30,7 +30,7 @@ describe("connection diagnostics", () => {
     expect(diagnostics.steps[3].detail).toContain("2 张照片");
   });
 
-  it("marks a real camera and readable photos as complete while write-back is unavailable", () => {
+  it("marks a real camera, readable photos, and rating write-back as complete", () => {
     const diagnostics = createConnectionDiagnostics({
       camera: imageCaptureCamera,
       connectionState: "connected",
@@ -50,9 +50,10 @@ describe("connection diagnostics", () => {
       ["macos_access", "complete"],
       ["camera_identity", "complete"],
       ["card_photos", "complete"],
-      ["rating_write_back", "unavailable"],
+      ["rating_write_back", "complete"],
     ]);
     expect(diagnostics.steps[3].detail).toContain("1 photo");
+    expect(diagnostics.steps[4].detail).toContain("PTP");
   });
 
   it("shows a clear action when no camera is detected", () => {

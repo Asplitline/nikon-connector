@@ -1,3 +1,4 @@
+import { Eraser, Star } from "lucide-react";
 import type { Rating } from "./types";
 import { starButtonClass } from "./photoStyles";
 
@@ -50,7 +51,11 @@ export function StarRating({
             title={labels.star(nextRating)}
             type="button"
           >
-            {isActive ? "★" : "☆"}
+            <Star
+              aria-hidden="true"
+              className={isActive ? "h-5 w-5 fill-current" : "h-5 w-5"}
+              strokeWidth={1.65}
+            />
           </button>
         );
       })}
@@ -65,7 +70,11 @@ export function StarRating({
         onClick={() => onChange(0)}
         type="button"
       >
-        {isOverlay ? "⌫" : labels.clear}
+        {isOverlay ? (
+          <Eraser aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+        ) : (
+          labels.clear
+        )}
       </button>
     </div>
   );

@@ -113,8 +113,8 @@ export function applyLocalPickStatuses(
 }
 
 export function isLocalOnlyRatingError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return /Nikon SDK rating write-back is not connected yet|unsupported/i.test(message);
+  void error;
+  return false;
 }
 
 function storageKey(cameraId: string) {

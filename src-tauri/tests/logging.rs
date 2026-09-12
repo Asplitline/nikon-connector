@@ -1,7 +1,8 @@
 use std::fs;
 
 use nikon_connector_lib::logging::{
-    append_log_line, collect_log_info, export_log_bundle, sanitize_log_message, LogLevel,
+    append_log_line, clear_log_files, collect_log_info, export_log_bundle, sanitize_log_message,
+    reveal_target_for_path, LogLevel,
 };
 
 #[test]
@@ -49,6 +50,41 @@ fn collect_log_info_reports_paths_and_size() {
         .export_path
         .ends_with("nikon-connector-diagnostic-log.txt"));
     assert!(info.size_bytes > 0);
+}
+
+#[test]
+fn clear_log_files_removes_current_log_and_export_bundle() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "nikon-connector-log-clear-test-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).expect("create temp log dir");
+
+    append_log_line(&temp_dir, LogLevel::Warn, "helper", "permission is pending")
+        .expect("append log");
+    let export_path = export_log_bundle(&temp_dir).expect("export log bundle");
+
+    clear_log_files(&temp_dir).expect("clear logs");
+    let info = collect_log_info(&temp_dir).expect("collect log info");
+
+    assert_eq!(info.size_bytes, 0);
+    assert!(!temp_dir.join("nikon-connector.log").exists());
+    assert!(!export_path.exists());
+}
+
+#[test]
+fn reveal_target_for_missing_file_uses_parent_directory() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "nikon-connector-log-reveal-test-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&temp_dir);
+    fs::create_dir_all(&temp_dir).expect("create temp log dir");
+
+    let target = reveal_target_for_path(&temp_dir.join("missing-export.txt"));
+
+    assert_eq!(target, temp_dir);
 }
 
 #[test]

@@ -1,4 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Maximize2,
+  Minimize2,
+  MoreHorizontal,
+  X,
+} from "lucide-react";
 import {
   ConnectionDiagnosticPanel,
   ConnectionSetup,
@@ -9,6 +18,10 @@ import type {
   DiagnosticActionKind,
 } from "../photos/connectionDiagnostics";
 import { ExportPanel } from "../photos/ExportPanel";
+import {
+  getPhotoReviewModeShortcut,
+  shouldIgnorePhotoReviewShortcut,
+} from "../photos/keyboard";
 import { formatConnection } from "../photos/labels";
 import { PhotoDetails } from "../photos/PhotoDetails";
 import { Filmstrip, PhotoStage } from "../photos/PhotoStage";
@@ -35,6 +48,8 @@ type Translate = (
   values?: Parameters<typeof translate>[1],
 ) => string;
 
+type ReviewMode = "review" | "view";
+
 // 右侧工作区：标题栏 + 照片舞台 + 详情面板 + 底部胶片条
 // 选中照片及其在可见列表中的位置,一起决定标题栏与舞台的渲染
 export interface WorkspaceSelection {
@@ -51,6 +66,7 @@ export function WorkspacePanel({
   diagnostics,
   exportControls,
   inspectorOpen,
+  initialReviewMode = "review",
   isRatingDisabled,
   isReviewReady,
   library,
@@ -80,6 +96,7 @@ export function WorkspacePanel({
   diagnostics: ConnectionDiagnostics;
   exportControls: ExportControls;
   inspectorOpen: boolean;
+  initialReviewMode?: ReviewMode;
   isRatingDisabled: boolean;
   isReviewReady: boolean;
   library: LibraryStats;
@@ -103,8 +120,12 @@ export function WorkspacePanel({
   zoom: PhotoZoomState;
 }) {
   const [activeDrawer, setActiveDrawer] = useState<"camera" | "export" | null>(null);
+  const [isFilmstripOpen, setIsFilmstripOpen] = useState(false);
+  const [reviewMode, setReviewMode] = useState<ReviewMode>(initialReviewMode);
   // 审阅态与选中照片同时成立才渲染照片相关 UI，避免各处重复判空
   const reviewPhoto = isReviewReady ? selection.photo : undefined;
+  const isViewMode = reviewMode === "view" && Boolean(reviewPhoto);
+  const isFilmstripVisible = isFilmstripOpen && !isViewMode;
   const title = reviewPhoto ? reviewPhoto.fileName : tr("connection.connectCamera");
   const totalCount = selection.catalogView.photos.length;
   const isFiltered = library.visibleCount !== library.photoCount;
@@ -114,6 +135,8 @@ export function WorkspacePanel({
         ? `${selection.index} / ${totalCount} · ${tr("review.originalCount", { count: library.photoCount })}`
         : `${selection.index} / ${totalCount}`
       : "";
+  const viewCounterLabel =
+    reviewPhoto && totalCount > 0 ? `${selection.index} / ${totalCount}` : "";
   const exportLabel =
     exportControls.selection.count > 0
       ? tr("export.actionWithCount", { count: exportControls.selection.count })
@@ -128,26 +151,81 @@ export function WorkspacePanel({
   const deviceNameClass = reviewPhoto
     ? "flex min-w-0 items-center gap-2 truncate text-left text-ui-sm font-ui-650 leading-none text-ink transition-colors hover:text-[color-mix(in_oklch,var(--app-ink)_90%,var(--app-focus))] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     : "flex max-w-[168px] shrink-0 items-center gap-2 truncate text-left text-ui-sm font-ui-650 leading-none text-ink transition-colors hover:text-[color-mix(in_oklch,var(--app-ink)_90%,var(--app-focus))] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus max-sm:max-w-none";
+  const workspaceClass = isReviewReady
+    ? isViewMode
+      ? "relative grid h-full min-h-0 min-w-0 grid-rows-[32px_minmax(0,1fr)] bg-canvas max-sm:min-h-[100vh]"
+      : [
+          "relative grid h-full min-h-0 min-w-0 bg-canvas max-sm:min-h-0",
+          isFilmstripVisible
+            ? "grid-rows-[64px_minmax(0,1fr)_88px] max-sm:grid-rows-[auto_minmax(0,auto)_84px]"
+            : "grid-rows-[64px_minmax(0,1fr)] max-sm:grid-rows-[auto_minmax(0,auto)]",
+        ].join(" ")
+    : "relative grid h-full min-h-0 min-w-0 grid-rows-[64px_minmax(0,1fr)] bg-canvas max-sm:min-h-0 max-sm:grid-rows-[auto_minmax(0,auto)]";
+  const filmstripToggleLabel = isFilmstripOpen
+    ? tr("review.hideFilmstrip")
+    : tr("review.showFilmstrip");
+  const filmstripNavClass = "relative min-w-0 border-t border-line bg-panel";
+  const filmstripToggleClass = [
+    "absolute left-1/2 top-1 z-20 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-md border border-line bg-[color-mix(in_oklch,var(--app-surface)_82%,transparent)] text-sm text-muted shadow-[0_8px_22px_color-mix(in_oklch,var(--app-ink)_12%,transparent)] backdrop-blur-sm transition-[background-color,border-color,color,transform] duration-[180ms] ease-[ease] hover:bg-hover hover:text-ink active:-translate-x-1/2 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+  ].join(" ");
+  const filmstripInlineToggleClass =
+    "grid h-8 w-8 shrink-0 place-items-center rounded-md text-on-image/72 transition-[background-color,color,opacity,transform] duration-[180ms] ease-[ease] hover:bg-[color-mix(in_oklch,currentColor_12%,transparent)] hover:text-on-image active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-45";
+  const filmstripInlineToggle = (
+    <button
+      aria-label={filmstripToggleLabel}
+      aria-expanded={isFilmstripOpen}
+      className={filmstripInlineToggleClass}
+      onClick={() => setIsFilmstripOpen(true)}
+      title={filmstripToggleLabel}
+      type="button"
+    >
+      <ChevronUp aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
+    </button>
+  );
+  const feedbackMessage = ratingError ?? (!isReviewReady ? status : null);
+  const feedbackClass = [
+    "pointer-events-none absolute inset-x-4 z-40 flex justify-end",
+    isReviewReady && isFilmstripVisible ? "bottom-[104px]" : "bottom-4",
+    "max-sm:inset-x-3 max-sm:bottom-3",
+  ].join(" ");
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!reviewPhoto || shouldIgnorePhotoReviewShortcut(event.target)) {
+        return;
+      }
+
+      const shortcut = getPhotoReviewModeShortcut(event.key);
+
+      if (!shortcut) {
+        return;
+      }
+
+      if (shortcut.type === "toggle") {
+        event.preventDefault();
+        setActiveDrawer(null);
+        setReviewMode((current) => (current === "view" ? "review" : "view"));
+        return;
+      }
+
+      if (shortcut.type === "exit" && isViewMode) {
+        event.preventDefault();
+        setReviewMode("review");
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isViewMode, reviewPhoto]);
 
   return (
-    <section
-      className={
-        isReviewReady
-          ? "relative grid h-full min-h-0 min-w-0 grid-rows-[64px_minmax(0,1fr)_88px_34px] bg-canvas max-sm:min-h-0 max-sm:grid-rows-[auto_minmax(0,auto)_84px_auto]"
-          : "relative grid h-full min-h-0 min-w-0 grid-rows-[64px_minmax(0,1fr)_30px] bg-canvas max-sm:min-h-0 max-sm:grid-rows-[auto_minmax(0,auto)_auto]"
-      }
-    >
-      <header className={headerClass}>
+    <section className={workspaceClass}>
+      {!isViewMode ? (
+        <header className={headerClass}>
         <div className={leadingGroupClass}>
-          <button
-            aria-label={tr("connection.device")}
-            className={toolbarIconButtonClass}
-            onClick={() => setActiveDrawer(activeDrawer === "camera" ? null : "camera")}
-            title={tr("connection.device")}
-            type="button"
-          >
-            <SidebarIcon />
-          </button>
           <div className="flex min-w-0 items-center gap-2">
             <button
               className={deviceNameClass}
@@ -165,9 +243,7 @@ export function WorkspacePanel({
               <span className="h-5 w-px shrink-0 bg-line" aria-hidden="true" />
               <ReviewControls
                 disabled={!isReviewReady}
-                filter={catalogControls.filter}
                 locale={locale}
-                onFilterChange={catalogControls.onFilterChange}
                 onSortChange={catalogControls.onSortChange}
                 sort={catalogControls.sort}
                 variant="header"
@@ -209,8 +285,22 @@ export function WorkspacePanel({
             title={tr("app.details")}
             type="button"
           >
-            <InfoIcon />
+            <Info aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
           </button>
+          {reviewPhoto ? (
+            <button
+              aria-label={tr("review.enterViewMode")}
+              className={toolbarIconButtonClass}
+              onClick={() => {
+                setActiveDrawer(null);
+                setReviewMode("view");
+              }}
+              title={tr("review.enterViewMode")}
+              type="button"
+            >
+              <Maximize2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          ) : null}
           {reviewPhoto ? (
             <button
               className="h-8 rounded-lg border border-line bg-[color-mix(in_oklch,var(--app-surface)_84%,var(--app-panel))] px-3 text-ui-sm font-ui-650 leading-8 text-ink transition-[background-color,border-color,color,opacity,transform] duration-[180ms] ease-[ease] hover:bg-hover active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-45"
@@ -227,16 +317,21 @@ export function WorkspacePanel({
             title={tr("settings.settings")}
             type="button"
           >
-            <MoreIcon />
+            <MoreHorizontal aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
           </button>
         </div>
-      </header>
+        </header>
+      ) : null}
 
-      <figure className={photoStageClass(isReviewReady)}>
+      <figure className={`${photoStageClass(isReviewReady)} ${isViewMode ? "row-start-2" : ""}`}>
         {reviewPhoto ? (
           <PhotoStage
+            bottomAccessory={isFilmstripVisible ? null : filmstripInlineToggle}
+            chromeVisible={!isViewMode}
             disabled={isRatingDisabled}
+            infoVisible={inspectorOpen && !isViewMode}
             locale={locale}
+            onInfoToggle={onToggleInspector}
             onNext={() => onNavigatePhoto(1)}
             onPrevious={() => onNavigatePhoto(-1)}
             onMark={(status) => onMark(reviewPhoto, status)}
@@ -257,32 +352,79 @@ export function WorkspacePanel({
         )}
       </figure>
 
-      {isReviewReady ? (
-        <nav className="min-w-0 border-t border-line bg-panel px-2.5 py-2 max-sm:p-2">
-          <Filmstrip
-            locale={locale}
-            onSelect={onSelectPhoto}
-            onVisibleWindowChange={onPreviewWindowChange}
-            photos={selection.catalogView.photos}
-            selectedPhotoId={selection.catalogView.selectedPhotoId}
-          />
+      {isViewMode ? (
+        <div
+          className="row-start-1 flex min-w-0 items-center justify-between gap-3 border-b border-[color-mix(in_oklch,var(--app-line)_34%,transparent)] bg-[color-mix(in_oklch,var(--app-canvas)_76%,transparent)] px-3 text-on-image/62"
+          data-view-mode-rail="true"
+        >
+          {viewCounterLabel ? (
+            <div
+              aria-label={tr("review.viewCounter", {
+                index: selection.index,
+                total: totalCount,
+              })}
+              className="text-ui-xs font-ui-760 tabular-nums"
+            >
+              {viewCounterLabel}
+            </div>
+          ) : null}
+          <button
+            aria-label={tr("review.exitViewMode")}
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-on-image/62 transition-[background-color,color,transform] duration-[180ms] ease-[ease] hover:bg-[color-mix(in_oklch,currentColor_8%,transparent)] hover:text-on-image active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            onClick={() => setReviewMode("review")}
+            title={tr("review.exitViewMode")}
+            type="button"
+          >
+            <Minimize2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        </div>
+      ) : null}
+
+      {isReviewReady && isFilmstripVisible ? (
+        <nav className={filmstripNavClass}>
+          <button
+            aria-label={filmstripToggleLabel}
+            aria-expanded={isFilmstripOpen}
+            className={filmstripToggleClass}
+            onClick={() => setIsFilmstripOpen((current) => !current)}
+            title={filmstripToggleLabel}
+            type="button"
+          >
+            {isFilmstripOpen ? (
+              <ChevronDown aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
+            ) : (
+              <ChevronUp aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
+            )}
+          </button>
+          <div className="px-2.5 py-2 max-sm:p-2">
+            <Filmstrip
+              locale={locale}
+              onSelect={onSelectPhoto}
+              onVisibleWindowChange={onPreviewWindowChange}
+              photos={selection.catalogView.photos}
+              selectedPhotoId={selection.catalogView.selectedPhotoId}
+            />
+          </div>
         </nav>
       ) : null}
 
-      <footer className="flex min-w-0 items-center justify-between gap-3 border-t border-line bg-panel px-4 text-ui-sm font-ui-760 text-muted max-sm:flex-wrap max-sm:py-2">
-        <span className="min-w-0 truncate">
-          {isReviewReady
-            ? tr("review.statusSummary", {
-                keepers: shootingReview.keepers,
-                rated: library.ratedCount,
-                total: library.photoCount,
-              })
-            : status}
-        </span>
-        {ratingError ? <span className="truncate text-danger">{ratingError}</span> : null}
-      </footer>
+      {feedbackMessage && !isViewMode ? (
+        <div aria-live="polite" className={feedbackClass} role="status">
+          <p
+            className={[
+              "max-w-[min(560px,calc(100vw-32px))] truncate rounded-md border px-3 py-2 text-ui-sm font-ui-760 shadow-[0_14px_36px_color-mix(in_oklch,var(--app-ink)_22%,transparent)] backdrop-blur-sm",
+              ratingError
+                ? "border-danger-line bg-danger-bg text-danger"
+                : "border-line bg-[color-mix(in_oklch,var(--app-panel)_86%,transparent)] text-muted",
+            ].join(" ")}
+            title={feedbackMessage}
+          >
+            {feedbackMessage}
+          </p>
+        </div>
+      ) : null}
 
-      {activeDrawer ? (
+      {activeDrawer && !isViewMode ? (
         <aside className={`absolute bottom-0 left-0 ${drawerTopClass} z-30 w-[320px] max-w-[calc(100vw-28px)] overflow-y-auto border-r border-line bg-panel p-4 shadow-[18px_0_50px_color-mix(in_oklch,var(--app-ink)_24%,transparent)]`}>
           <div className="mb-5 flex items-center justify-between gap-3">
             <h3 className="section-label">
@@ -293,7 +435,7 @@ export function WorkspacePanel({
               onClick={() => setActiveDrawer(null)}
               type="button"
             >
-              ×
+              <X aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
             </button>
           </div>
           {activeDrawer === "camera" ? (
@@ -336,7 +478,7 @@ export function WorkspacePanel({
         </aside>
       ) : null}
 
-      {inspectorOpen ? (
+      {inspectorOpen && !reviewPhoto ? (
         <aside className={`absolute bottom-0 right-0 ${drawerTopClass} z-30 w-[292px] max-w-[calc(100vw-28px)] overflow-y-auto border-l border-line bg-panel p-4 shadow-[-18px_0_50px_color-mix(in_oklch,var(--app-ink)_24%,transparent)]`}>
           <div className="mb-5 flex items-center justify-between gap-3">
             <h3 className="section-label">{tr("app.details")}</h3>
@@ -345,7 +487,7 @@ export function WorkspacePanel({
               onClick={onToggleInspector}
               type="button"
             >
-              ×
+              <X aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
             </button>
           </div>
           {reviewPhoto ? <PhotoDetails locale={locale} photo={reviewPhoto} /> : <EmptyPhotoDetails locale={locale} />}
@@ -357,59 +499,3 @@ export function WorkspacePanel({
 
 const toolbarIconButtonClass =
   "grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-[color-mix(in_oklch,var(--app-surface)_84%,var(--app-panel))] text-[color-mix(in_oklch,var(--app-ink)_78%,transparent)] transition-[background-color,border-color,color,transform] duration-[180ms] ease-[ease] hover:bg-hover hover:text-ink active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-
-function SidebarIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.6"
-      viewBox="0 0 16 16"
-    >
-      <rect height="11" rx="2" width="12" x="2" y="2.5" />
-      <path d="M6 3v10" />
-    </svg>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.6"
-      viewBox="0 0 16 16"
-    >
-      <circle cx="8" cy="8" r="5.5" />
-      <path d="M8 7.3v3.4" />
-      <path d="M8 5.15h.01" />
-    </svg>
-  );
-}
-
-function MoreIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.6"
-      viewBox="0 0 16 16"
-    >
-      <path d="M4.25 8h.01" />
-      <path d="M8 8h.01" />
-      <path d="M11.75 8h.01" />
-    </svg>
-  );
-}

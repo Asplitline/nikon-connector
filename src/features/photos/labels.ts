@@ -22,9 +22,11 @@ export const catalogSortOptions: PhotoCatalogSort[] = [
 
 export const exportModeOptions: ExportMode[] = [
   "picked",
-  "visible",
-  "rating_3_plus",
-  "rating_4_plus",
+  "unrated",
+  "rating_1",
+  "rating_2",
+  "rating_3",
+  "rating_4",
   "rating_5",
   "current",
 ];
@@ -56,10 +58,12 @@ export function formatExportMode(mode: ExportMode, locale: Locale) {
   const labels: Record<ExportMode, string> = {
     current: t("export.mode.current", undefined, locale),
     picked: t("export.mode.picked", undefined, locale),
-    rating_3_plus: t("export.mode.rating3Plus", undefined, locale),
-    rating_4_plus: t("export.mode.rating4Plus", undefined, locale),
+    rating_1: t("export.mode.rating1", undefined, locale),
+    rating_2: t("export.mode.rating2", undefined, locale),
+    rating_3: t("export.mode.rating3", undefined, locale),
+    rating_4: t("export.mode.rating4", undefined, locale),
     rating_5: t("export.mode.rating5", undefined, locale),
-    visible: t("export.mode.visible", undefined, locale),
+    unrated: t("export.mode.unrated", undefined, locale),
   };
 
   return labels[mode];
@@ -103,16 +107,4 @@ export function formatDiagnosticState(
   };
 
   return labels[state];
-}
-
-export function diagnosticSymbol(state: ConnectionDiagnosticStep["state"]) {
-  const symbols: Record<ConnectionDiagnosticStep["state"], string> = {
-    attention: "!",
-    checking: "...",
-    complete: "✓",
-    pending: "",
-    unavailable: "−",
-  };
-
-  return symbols[state];
 }

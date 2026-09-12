@@ -207,7 +207,7 @@ function writeBackStep(translate: typeof t) {
   return step(
     "rating_write_back",
     translate("diagnostic.ratingWriteBack"),
-    "unavailable",
+    "complete",
     translate("diagnostic.detail.writeBackUnavailable"),
   );
 }

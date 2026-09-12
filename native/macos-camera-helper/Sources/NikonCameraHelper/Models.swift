@@ -12,7 +12,7 @@ struct CameraPhoto: Codable {
     let cameraId: String
     let fileName: String
     let capturedAt: String
-    let rating: Int
+    var rating: Int
     let fileType: String
     let width: Int
     let height: Int

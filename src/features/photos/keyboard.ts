@@ -3,10 +3,14 @@ import type { PickStatus, Rating } from "./types";
 export type PhotoReviewShortcut =
   | { type: "move"; offset: -1 | 1 }
   | { type: "edge"; edge: "first" | "last" }
+  | { type: "comment" }
   | { type: "inspector" }
   | { type: "mark"; status: Exclude<PickStatus, "none"> }
+  | { type: "ratePrefix" }
   | { type: "rate"; rating: Rating }
   | { type: "zoom"; action: "in" | "out" | "fit" | "actual" };
+
+export type PhotoReviewModeShortcut = { type: "toggle" } | { type: "exit" };
 
 export function getPhotoReviewShortcut(key: string): PhotoReviewShortcut | null {
   if (key === "ArrowRight") {
@@ -57,6 +61,14 @@ export function getPhotoReviewShortcut(key: string): PhotoReviewShortcut | null 
     return { type: "inspector" };
   }
 
+  if (key.toLowerCase() === "c") {
+    return { type: "comment" };
+  }
+
+  if (key.toLowerCase() === "s") {
+    return { type: "ratePrefix" };
+  }
+
   if (key.toLowerCase() === "p") {
     return { type: "mark", status: "picked" };
   }
@@ -74,6 +86,40 @@ export function getPhotoReviewShortcut(key: string): PhotoReviewShortcut | null 
   }
 
   return null;
+}
+
+export function getPhotoReviewModeShortcut(key: string): PhotoReviewModeShortcut | null {
+  if (key.toLowerCase() === "v") {
+    return { type: "toggle" };
+  }
+
+  if (key === "Escape") {
+    return { type: "exit" };
+  }
+
+  return null;
+}
+
+export function createPhotoReviewShortcutResolver() {
+  let ratingPrefixActive = false;
+
+  return (key: string): PhotoReviewShortcut | null => {
+    if (ratingPrefixActive) {
+      ratingPrefixActive = false;
+
+      if (["1", "2", "3", "4", "5"].includes(key)) {
+        return { type: "rate", rating: Number(key) as Rating };
+      }
+    }
+
+    const shortcut = getPhotoReviewShortcut(key);
+
+    if (shortcut?.type === "ratePrefix") {
+      ratingPrefixActive = true;
+    }
+
+    return shortcut;
+  };
 }
 
 export function shouldIgnorePhotoReviewShortcut(target: EventTarget | null) {
